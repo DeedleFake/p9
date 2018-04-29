@@ -1,14 +1,41 @@
 package p9
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
+	"sync"
 )
 
-// A Message is any 9P message, either T or R, minus the tag. Tags are
-// handled automatically by the server.
+var (
+	bufPool = &sync.Pool{
+		New: func() interface{} {
+			return new(bytes.Buffer)
+		},
+	}
+)
+
+func WriteMessage(w io.Writer, tag uint16, msg Message) error {
+	buf := bufPool.Get().(*bytes.Buffer)
+
+	e := &encoder{w: buf}
+	err := e.Encode(msg)
+	if err != nil {
+		return err
+	}
+
+	e.w = w
+	e.Encode(4 + 1 + 2 + uint32(buf.Len()))
+	e.Encode(msg.Type())
+	e.Encode(tag)
+	msg.encode(e)
+
+	return e.err
+}
+
+// A Message is any 9P message, either T or R, minus the tag.
 type Message interface {
 	// Type returns the message type.
 	Type() MessageType
