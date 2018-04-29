@@ -13,12 +13,7 @@ type Message interface {
 	// Type returns the message type.
 	Type() MessageType
 
-	// Size returns the number of bytes that the message will write in
-	// wire format.
-	Size() uint32
-
-	// WriteTo writes the message to w in wire format.
-	WriteTo(w io.Writer) (int64, error)
+	encodable
 }
 
 const (
@@ -65,7 +60,6 @@ func (t MessageType) encode(e *encoder) {
 
 type encoder struct {
 	w   io.Writer
-	n   int64
 	err error
 }
 
@@ -75,7 +69,6 @@ func (e *encoder) Write(data []byte) (int, error) {
 	}
 
 	n, err := e.w.Write(data)
-	e.n += int64(n)
 	e.err = err
 	return n, err
 }
@@ -188,19 +181,17 @@ func (t QIDType) encode(e *encoder) {
 }
 
 type Stat struct {
-	Type    uint16
-	Dev     uint32
-	QIDType QIDType
-	Version uint32
-	Path    uint64
-	Mode    uint32 // TODO: Make a Mode type?
-	ATime   uint32
-	MTime   uint32
-	Length  uint64
-	Name    string
-	UID     string
-	GID     string
-	MUID    string
+	Type   uint16
+	Dev    uint32
+	QID    QID
+	Mode   uint32 // TODO: Make a Mode type?
+	ATime  uint32
+	MTime  uint32
+	Length uint64
+	Name   string
+	UID    string
+	GID    string
+	MUID   string
 }
 
 func (s *Stat) encode(e *encoder) {
@@ -210,9 +201,7 @@ func (s *Stat) encode(e *encoder) {
 	e.Encode(uint16(size + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)))
 	e.Encode(s.Type)
 	e.Encode(s.Dev)
-	e.Encode(s.QIDType)
-	e.Encode(s.Version)
-	e.Encode(s.Path)
+	e.Encode(s.QID)
 	e.Encode(s.Mode)
 	e.Encode(s.ATime)
 	e.Encode(s.MTime)
@@ -231,12 +220,20 @@ func (msg Tversion) Type() MessageType {
 	return TversionType
 }
 
+func (msg Tversion) encode(e *encoder) {
+	e.Encode(msg.Version)
+}
+
 type Rversion struct {
 	Version string
 }
 
 func (msg Rversion) Type() MessageType {
 	return RversionType
+}
+
+func (msg Rversion) encode(e *encoder) {
+	e.Encode(msg.Version)
 }
 
 type Tauth struct {
@@ -249,12 +246,22 @@ func (msg Tauth) Type() MessageType {
 	return TauthType
 }
 
+func (msg Tauth) encode(e *encoder) {
+	e.Encode(msg.AFID)
+	e.Encode(msg.Uname)
+	e.Encode(msg.Aname)
+}
+
 type Rauth struct {
 	AQID QID
 }
 
 func (msg Rauth) Type() MessageType {
 	return RauthType
+}
+
+func (msg Rauth) encode(e *encoder) {
+	e.Encode(msg.AQID)
 }
 
 type Tattach struct {
@@ -268,12 +275,23 @@ func (msg Tattach) Type() MessageType {
 	return TattachType
 }
 
+func (msg Tattach) encode(e *encoder) {
+	e.Encode(msg.FID)
+	e.Encode(msg.AFID)
+	e.Encode(msg.Uname)
+	e.Encode(msg.Aname)
+}
+
 type Rattach struct {
 	QID QID
 }
 
 func (msg Rattach) Type() MessageType {
 	return RattachType
+}
+
+func (msg Rattach) encode(e *encoder) {
+	e.Encode(msg.QID)
 }
 
 type Rerror struct {
@@ -284,6 +302,10 @@ func (msg Rerror) Type() MessageType {
 	return RerrorType
 }
 
+func (msg Rerror) encode(e *encoder) {
+	e.Encode(msg.Ename)
+}
+
 type Tflush struct {
 	OldTag uint16
 }
@@ -292,11 +314,18 @@ func (msg Tflush) Type() MessageType {
 	return TflushType
 }
 
+func (msg Tflush) encode(e *encoder) {
+	e.Encode(msg.OldTag)
+}
+
 type Rflush struct {
 }
 
 func (msg Rflush) Type() MessageType {
 	return RflushType
+}
+
+func (msg Rflush) encode(e *encoder) {
 }
 
 type Twalk struct {
@@ -309,12 +338,22 @@ func (msg Twalk) Type() MessageType {
 	return TwalkType
 }
 
+func (msg Twalk) encode(e *encoder) {
+	e.Encode(msg.FID)
+	e.Encode(msg.NewFID)
+	e.Encode(msg.Wname)
+}
+
 type Rwalk struct {
 	WQID []QID
 }
 
 func (msg Rwalk) Type() MessageType {
 	return RwalkType
+}
+
+func (msg Rwalk) encode(e *encoder) {
+	e.Encode(msg.WQID)
 }
 
 type Topen struct {
@@ -326,6 +365,11 @@ func (msg Topen) Type() MessageType {
 	return TopenType
 }
 
+func (msg Topen) encode(e *encoder) {
+	e.Encode(msg.FID)
+	e.Encode(msg.Mode)
+}
+
 type Ropen struct {
 	QID    QID
 	IOUnit uint32
@@ -333,6 +377,11 @@ type Ropen struct {
 
 func (msg Ropen) Type() MessageType {
 	return RopenType
+}
+
+func (msg Ropen) encode(e *encoder) {
+	e.Encode(msg.QID)
+	e.Encode(msg.IOUnit)
 }
 
 type Tcreate struct {
@@ -346,6 +395,13 @@ func (msg Tcreate) Type() MessageType {
 	return TcreateType
 }
 
+func (msg Tcreate) encode(e *encoder) {
+	e.Encode(msg.FID)
+	e.Encode(msg.Name)
+	e.Encode(msg.Perm)
+	e.Encode(msg.Mode)
+}
+
 type Rcreate struct {
 	QID    QID
 	IOUnit uint32
@@ -353,6 +409,11 @@ type Rcreate struct {
 
 func (msg Rcreate) Type() MessageType {
 	return RcreateType
+}
+
+func (msg Rcreate) encode(e *encoder) {
+	e.Encode(msg.QID)
+	e.Encode(msg.IOUnit)
 }
 
 type Tread struct {
@@ -365,6 +426,12 @@ func (msg Tread) Type() MessageType {
 	return TreadType
 }
 
+func (msg Tread) encode(e *encoder) {
+	e.Encode(msg.FID)
+	e.Encode(msg.Offset)
+	e.Encode(msg.Count)
+}
+
 // TODO: Figure out a clean way to allow handlers to send responses
 // via an io.Writer?
 type Rread struct {
@@ -373,6 +440,10 @@ type Rread struct {
 
 func (msg Rread) Type() MessageType {
 	return RreadType
+}
+
+func (msg Rread) encode(e *encoder) {
+	e.Encode(msg.Data)
 }
 
 // TODO: Figure out a clean way to allow clients request writes via an
@@ -387,12 +458,22 @@ func (msg Twrite) Type() MessageType {
 	return TwriteType
 }
 
+func (msg Twrite) encode(e *encoder) {
+	e.Encode(msg.FID)
+	e.Encode(msg.Offset)
+	e.Encode(msg.Data)
+}
+
 type Rwrite struct {
 	Count uint32
 }
 
 func (msg Rwrite) Type() MessageType {
 	return RwriteType
+}
+
+func (msg Rwrite) encode(e *encoder) {
+	e.Encode(msg.Count)
 }
 
 type Tclunk struct {
@@ -403,11 +484,18 @@ func (msg Tclunk) Type() MessageType {
 	return TclunkType
 }
 
+func (msg Tclunk) encode(e *encoder) {
+	e.Encode(msg.FID)
+}
+
 type Rclunk struct {
 }
 
 func (msg Rclunk) Type() MessageType {
 	return RclunkType
+}
+
+func (msg Rclunk) encode(e *encoder) {
 }
 
 type Tremove struct {
@@ -418,11 +506,18 @@ func (msg Tremove) Type() MessageType {
 	return TremoveType
 }
 
+func (msg Tremove) encode(e *encoder) {
+	e.Encode(msg.FID)
+}
+
 type Rremove struct {
 }
 
 func (msg Rremove) Type() MessageType {
 	return RremoveType
+}
+
+func (msg Rremove) encode(e *encoder) {
 }
 
 type Tstat struct {
@@ -433,12 +528,20 @@ func (msg Tstat) Type() MessageType {
 	return TstatType
 }
 
+func (msg Tstat) encode(e *encoder) {
+	e.Encode(msg.FID)
+}
+
 type Rstat struct {
 	Stat []Stat
 }
 
 func (msg Rstat) Type() MessageType {
 	return RstatType
+}
+
+func (msg Rstat) encode(e *encoder) {
+	e.Encode(msg.Stat)
 }
 
 type Twstat struct {
@@ -450,9 +553,17 @@ func (msg Twstat) Type() MessageType {
 	return TwstatType
 }
 
+func (msg Twstat) encode(e *encoder) {
+	e.Encode(msg.FID)
+	e.Encode(msg.Stat)
+}
+
 type Rwstat struct {
 }
 
 func (msg Rwstat) Type() MessageType {
 	return RwstatType
+}
+
+func (msg Rwstat) encode(e *encoder) {
 }
