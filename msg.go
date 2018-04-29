@@ -178,6 +178,41 @@ type encodable interface {
 	encode(e *encoder)
 }
 
+type decoder struct {
+	r   io.Reader
+	err error
+}
+
+func (d *decoder) Read(buf []byte) (int, error) {
+	if d.err != nil {
+		return 0, d.err
+	}
+
+	n, err := d.r.Read(buf)
+	d.err = err
+	return n, err
+}
+
+func (d *decoder) Decode(v interface{}) error {
+	if d.err != nil {
+		return d.err
+	}
+
+	if v, ok := v.(decodable); ok {
+		v.decode(d)
+		return d.err
+	}
+
+	switch v := v.(type) {
+	default:
+		panic(fmt.Errorf("Unexpected type: %T", v))
+	}
+}
+
+type decodable interface {
+	decode(d *decoder)
+}
+
 type QID struct {
 	Type    QIDType
 	Version uint32
