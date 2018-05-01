@@ -253,6 +253,7 @@ func (s *Stat) decode(d *decoder) {
 }
 
 type Tversion struct {
+	Msize   uint32
 	Version string
 }
 
@@ -261,14 +262,17 @@ func (msg Tversion) Type() MessageType {
 }
 
 func (msg Tversion) encode(e *encoder) {
+	e.Encode(msg.Msize)
 	e.Encode(msg.Version)
 }
 
 func (msg *Tversion) decode(d *decoder) {
+	d.Decode(&msg.Msize)
 	d.Decode(&msg.Version)
 }
 
 type Rversion struct {
+	Msize   uint32
 	Version string
 }
 
@@ -277,10 +281,12 @@ func (msg Rversion) Type() MessageType {
 }
 
 func (msg Rversion) encode(e *encoder) {
+	e.Encode(msg.Msize)
 	e.Encode(msg.Version)
 }
 
 func (msg *Rversion) decode(d *decoder) {
+	d.Decode(&msg.Msize)
 	d.Decode(&msg.Version)
 }
 
