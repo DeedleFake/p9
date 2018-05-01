@@ -6,14 +6,21 @@ import (
 	"io"
 )
 
+// encodable is a type that knows how to encode itself using an
+// encoder.
 type encodable interface {
 	encode(e *encoder)
 }
 
+// decodable is a type that knows how to decode itself using a
+// decoder.
 type decodable interface {
 	decode(d *decoder)
 }
 
+// An encoder encodes the various types necessary for the protocol. It
+// only handles those types, however. Attempting to use it with other
+// types will panic.
 type encoder struct {
 	w   io.Writer
 	n   uint32
@@ -22,11 +29,14 @@ type encoder struct {
 	mode func(interface{}) error
 }
 
+// size is an encoder mode that calculates the total size of an
+// encoded message.
 func (e *encoder) size(v interface{}) error {
 	e.n += uint32(binary.Size(v))
 	return nil
 }
 
+// write is an encoder mode that actually writes messages.
 func (e *encoder) write(v interface{}) error {
 	return binary.Write(e, binary.LittleEndian, v)
 }
@@ -41,6 +51,7 @@ func (e *encoder) Write(data []byte) (int, error) {
 	return n, err
 }
 
+// Encode handles v using the current encoder mode.
 func (e *encoder) Encode(v interface{}) error {
 	if e.err != nil {
 		return e.err
@@ -115,6 +126,9 @@ func (e *encoder) Encode(v interface{}) error {
 	}
 }
 
+// A decoder decodes the various types necessary for the protocal. It
+// only handles those types. Attempting to use a value of another type
+// with it will cause a panic.
 type decoder struct {
 	r   io.Reader
 	err error
@@ -130,6 +144,8 @@ func (d *decoder) Read(buf []byte) (int, error) {
 	return n, err
 }
 
+// Decode reads and decodes a value from the underlying io.Reader into
+// v.
 func (d *decoder) Decode(v interface{}) error {
 	if d.err != nil {
 		return d.err

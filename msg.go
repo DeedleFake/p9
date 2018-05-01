@@ -5,6 +5,8 @@ import (
 	"math"
 )
 
+// WriteMessage writes msg to w with the given tag. It returns an
+// error if any are encountered.
 func WriteMessage(w io.Writer, tag uint16, msg Message) error {
 	e := &encoder{
 		w: w,
@@ -22,6 +24,8 @@ func WriteMessage(w io.Writer, tag uint16, msg Message) error {
 	return e.err
 }
 
+// ReadMessage reads the next message from r, returning both it and
+// its tag. It also returns an error if any were encountered.
 func ReadMessage(r io.Reader) (Message, uint16, error) {
 	d := &decoder{
 		r: r,
@@ -109,10 +113,14 @@ type Message interface {
 }
 
 const (
+	// NoTag is a special tag that is used when the tag is unimportant.
 	NoTag uint16 = math.MaxUint16
+
+	// NoFID is a special FID that is used to signal a lack of an FID.
 	NoFID uint32 = math.MaxUint32
 )
 
+// MessageType is the 8-bit identifier of a message's type.
 type MessageType uint8
 
 const (
@@ -154,6 +162,7 @@ func (t *MessageType) decode(d *decoder) {
 	d.Decode((*uint8)(t))
 }
 
+// QID represents a QID value.
 type QID struct {
 	Type    QIDType
 	Version uint32
@@ -172,6 +181,7 @@ func (qid *QID) decode(d *decoder) {
 	d.Decode(&qid.Path)
 }
 
+// QIDType represents an 8-bit QID type identifier.
 type QIDType uint8
 
 const (
@@ -193,6 +203,7 @@ func (t *QIDType) decode(d *decoder) {
 	d.Decode((*uint8)(t))
 }
 
+// Stat is a stat value.
 type Stat struct {
 	Type   uint16
 	Dev    uint32
