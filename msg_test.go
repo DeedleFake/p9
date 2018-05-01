@@ -17,4 +17,11 @@ func TestWriteMessage(t *testing.T) {
 	}
 	t.Log(buf.Bytes())
 	t.Log(buf.Len())
+
+	msg, tag, err := p9.ReadMessage(&buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("%#v", msg)
+	t.Log(tag)
 }

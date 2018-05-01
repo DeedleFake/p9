@@ -13,10 +13,7 @@ func WriteMessage(w io.Writer, tag uint16, msg Message) error {
 	}
 
 	e.mode = e.size
-	err := e.Encode(msg)
-	if err != nil {
-		return err
-	}
+	e.Encode(msg)
 
 	e.mode = e.write
 	e.Encode(4 + 1 + 2 + e.n)
@@ -27,12 +24,90 @@ func WriteMessage(w io.Writer, tag uint16, msg Message) error {
 	return e.err
 }
 
+func ReadMessage(r io.Reader) (Message, uint16, error) {
+	d := &decoder{
+		r: r,
+	}
+
+	var size uint32
+	d.Decode(&size)
+
+	var msgType MessageType
+	d.Decode(&msgType)
+
+	tag := NoTag
+	d.Decode(&tag)
+
+	if d.err != nil {
+		return nil, tag, d.err
+	}
+
+	var msg Message
+	switch msgType {
+	case TversionType:
+		msg = new(Tversion)
+	case RversionType:
+		msg = new(Rversion)
+	case TauthType:
+		msg = new(Tauth)
+	case RauthType:
+		msg = new(Rauth)
+	case TattachType:
+		msg = new(Tattach)
+	case RattachType:
+		msg = new(Rattach)
+	case RerrorType:
+		msg = new(Rerror)
+	case TflushType:
+		msg = new(Tflush)
+	case RflushType:
+		msg = new(Rflush)
+	case TwalkType:
+		msg = new(Twalk)
+	case RwalkType:
+		msg = new(Rwalk)
+	case TopenType:
+		msg = new(Topen)
+	case RopenType:
+		msg = new(Ropen)
+	case TcreateType:
+		msg = new(Tcreate)
+	case RcreateType:
+		msg = new(Rcreate)
+	case TreadType:
+		msg = new(Tread)
+	case RreadType:
+		msg = new(Rread)
+	case TwriteType:
+		msg = new(Twrite)
+	case RwriteType:
+		msg = new(Rwrite)
+	case TclunkType:
+		msg = new(Tclunk)
+	case RclunkType:
+		msg = new(Rclunk)
+	case TremoveType:
+		msg = new(Tremove)
+	case RremoveType:
+		msg = new(Rremove)
+	case TstatType:
+		msg = new(Tstat)
+	case RstatType:
+		msg = new(Rstat)
+	case TwstatType:
+		msg = new(Twstat)
+	case RwstatType:
+		msg = new(Rwstat)
+	}
+
+	d.Decode(msg)
+	return msg, tag, d.err
+}
+
 // A Message is any 9P message, either T or R, minus the tag.
 type Message interface {
 	// Type returns the message type.
 	Type() MessageType
-
-	encodable
 }
 
 const (
@@ -75,6 +150,10 @@ const (
 
 func (t MessageType) encode(e *encoder) {
 	e.Encode(uint8(t))
+}
+
+func (t *MessageType) decode(d *decoder) {
+	d.Decode((*uint8)(t))
 }
 
 type encoder struct {
@@ -208,6 +287,73 @@ func (d *decoder) Decode(v interface{}) error {
 	}
 
 	switch v := v.(type) {
+	case *uint8, *uint16, *uint32, *uint64, *int8, *int16, *int32, *int64:
+		d.err = binary.Read(d, binary.LittleEndian, v)
+		return d.err
+
+	case *[]byte:
+		var size uint32
+		err := binary.Read(d, binary.LittleEndian, &size)
+		if err != nil {
+			d.err = err
+			return err
+		}
+
+		*v = make([]byte, size)
+		d.err = binary.Read(d, binary.LittleEndian, v)
+		return d.err
+
+	case *string:
+		var size uint16
+		err := binary.Read(d, binary.LittleEndian, &size)
+		if err != nil {
+			d.err = err
+			return err
+		}
+
+		buf := make([]byte, size)
+		d.err = binary.Read(d, binary.LittleEndian, buf)
+		*v = string(buf)
+		return d.err
+
+	case *[]string:
+		var size uint16
+		err := binary.Read(d, binary.LittleEndian, &size)
+		if err != nil {
+			d.err = err
+			return err
+		}
+
+		*v = make([]string, size)
+		for i := range *v {
+			err := d.Decode(&(*v)[i])
+			if err != nil {
+				d.err = err
+				return err
+			}
+		}
+
+		return d.err
+
+	case *[]QID:
+		var size uint16
+		err := binary.Read(d, binary.LittleEndian, &size)
+		if err != nil {
+			d.err = err
+			return err
+		}
+
+		*v = make([]QID, size)
+		for i := range *v {
+			err := d.Decode(&(*v)[i])
+			if err != nil {
+				d.err = err
+				return err
+			}
+		}
+
+		return d.err
+
 	default:
 		panic(fmt.Errorf("Unexpected type: %T", v))
 	}
@@ -229,6 +375,12 @@ func (qid QID) encode(e *encoder) {
 	e.Encode(qid.Path)
 }
 
+func (qid *QID) decode(d *decoder) {
+	d.Decode(&qid.Type)
+	d.Decode(&qid.Version)
+	d.Decode(&qid.Path)
+}
+
 type QIDType uint8
 
 const (
@@ -246,6 +398,10 @@ func (t QIDType) encode(e *encoder) {
 	e.Encode(uint8(t))
 }
 
+func (t *QIDType) decode(d *decoder) {
+	d.Decode((*uint8)(t))
+}
+
 type Stat struct {
 	Type   uint16
 	Dev    uint32
@@ -260,7 +416,7 @@ type Stat struct {
 	MUID   string
 }
 
-func (s *Stat) encode(e *encoder) {
+func (s Stat) encode(e *encoder) {
 	// size is the size of the data, not including the strings.
 	const size = 41
 
@@ -278,6 +434,22 @@ func (s *Stat) encode(e *encoder) {
 	e.Encode(s.MUID)
 }
 
+func (s *Stat) decode(d *decoder) {
+	var size uint16
+	d.Decode(&size)
+	d.Decode(&s.Type)
+	d.Decode(&s.Dev)
+	d.Decode(&s.QID)
+	d.Decode(&s.Mode)
+	d.Decode(&s.ATime)
+	d.Decode(&s.MTime)
+	d.Decode(&s.Length)
+	d.Decode(&s.Name)
+	d.Decode(&s.UID)
+	d.Decode(&s.GID)
+	d.Decode(&s.MUID)
+}
+
 type Tversion struct {
 	Version string
 }
@@ -290,6 +462,10 @@ func (msg Tversion) encode(e *encoder) {
 	e.Encode(msg.Version)
 }
 
+func (msg *Tversion) decode(d *decoder) {
+	d.Decode(&msg.Version)
+}
+
 type Rversion struct {
 	Version string
 }
@@ -300,6 +476,10 @@ func (msg Rversion) Type() MessageType {
 
 func (msg Rversion) encode(e *encoder) {
 	e.Encode(msg.Version)
+}
+
+func (msg *Rversion) decode(d *decoder) {
+	d.Decode(&msg.Version)
 }
 
 type Tauth struct {
@@ -318,6 +498,12 @@ func (msg Tauth) encode(e *encoder) {
 	e.Encode(msg.Aname)
 }
 
+func (msg *Tauth) decode(d *decoder) {
+	d.Decode(&msg.AFID)
+	d.Decode(&msg.Uname)
+	d.Decode(&msg.Aname)
+}
+
 type Rauth struct {
 	AQID QID
 }
@@ -328,6 +514,10 @@ func (msg Rauth) Type() MessageType {
 
 func (msg Rauth) encode(e *encoder) {
 	e.Encode(msg.AQID)
+}
+
+func (msg *Rauth) decode(d *decoder) {
+	d.Decode(&msg.AQID)
 }
 
 type Tattach struct {
@@ -348,6 +538,13 @@ func (msg Tattach) encode(e *encoder) {
 	e.Encode(msg.Aname)
 }
 
+func (msg *Tattach) decode(d *decoder) {
+	d.Decode(&msg.FID)
+	d.Decode(&msg.AFID)
+	d.Decode(&msg.Uname)
+	d.Decode(&msg.Aname)
+}
+
 type Rattach struct {
 	QID QID
 }
@@ -358,6 +555,10 @@ func (msg Rattach) Type() MessageType {
 
 func (msg Rattach) encode(e *encoder) {
 	e.Encode(msg.QID)
+}
+
+func (msg *Rattach) decode(d *decoder) {
+	d.Decode(&msg.QID)
 }
 
 type Rerror struct {
@@ -372,6 +573,10 @@ func (msg Rerror) encode(e *encoder) {
 	e.Encode(msg.Ename)
 }
 
+func (msg *Rerror) decode(d *decoder) {
+	d.Decode(&msg.Ename)
+}
+
 type Tflush struct {
 	OldTag uint16
 }
@@ -384,6 +589,10 @@ func (msg Tflush) encode(e *encoder) {
 	e.Encode(msg.OldTag)
 }
 
+func (msg *Tflush) decode(d *decoder) {
+	d.Decode(&msg.OldTag)
+}
+
 type Rflush struct {
 }
 
@@ -392,6 +601,9 @@ func (msg Rflush) Type() MessageType {
 }
 
 func (msg Rflush) encode(e *encoder) {
+}
+
+func (msg *Rflush) decode(d *decoder) {
 }
 
 type Twalk struct {
@@ -410,6 +622,12 @@ func (msg Twalk) encode(e *encoder) {
 	e.Encode(msg.Wname)
 }
 
+func (msg *Twalk) decode(d *decoder) {
+	d.Decode(&msg.FID)
+	d.Decode(&msg.NewFID)
+	d.Decode(&msg.Wname)
+}
+
 type Rwalk struct {
 	WQID []QID
 }
@@ -420,6 +638,10 @@ func (msg Rwalk) Type() MessageType {
 
 func (msg Rwalk) encode(e *encoder) {
 	e.Encode(msg.WQID)
+}
+
+func (msg *Rwalk) decode(d *decoder) {
+	d.Decode(&msg.WQID)
 }
 
 type Topen struct {
@@ -436,6 +658,11 @@ func (msg Topen) encode(e *encoder) {
 	e.Encode(msg.Mode)
 }
 
+func (msg *Topen) decode(d *decoder) {
+	d.Decode(&msg.FID)
+	d.Decode(&msg.Mode)
+}
+
 type Ropen struct {
 	QID    QID
 	IOUnit uint32
@@ -448,6 +675,11 @@ func (msg Ropen) Type() MessageType {
 func (msg Ropen) encode(e *encoder) {
 	e.Encode(msg.QID)
 	e.Encode(msg.IOUnit)
+}
+
+func (msg *Ropen) decode(d *decoder) {
+	d.Decode(&msg.QID)
+	d.Decode(&msg.IOUnit)
 }
 
 type Tcreate struct {
@@ -468,6 +700,13 @@ func (msg Tcreate) encode(e *encoder) {
 	e.Encode(msg.Mode)
 }
 
+func (msg *Tcreate) decode(d *decoder) {
+	d.Decode(&msg.FID)
+	d.Decode(&msg.Name)
+	d.Decode(&msg.Perm)
+	d.Decode(&msg.Mode)
+}
+
 type Rcreate struct {
 	QID    QID
 	IOUnit uint32
@@ -480,6 +719,11 @@ func (msg Rcreate) Type() MessageType {
 func (msg Rcreate) encode(e *encoder) {
 	e.Encode(msg.QID)
 	e.Encode(msg.IOUnit)
+}
+
+func (msg *Rcreate) decode(d *decoder) {
+	d.Decode(&msg.QID)
+	d.Decode(&msg.IOUnit)
 }
 
 type Tread struct {
@@ -498,6 +742,12 @@ func (msg Tread) encode(e *encoder) {
 	e.Encode(msg.Count)
 }
 
+func (msg *Tread) decode(d *decoder) {
+	d.Decode(&msg.FID)
+	d.Decode(&msg.Offset)
+	d.Decode(&msg.Count)
+}
+
 // TODO: Figure out a clean way to allow handlers to send responses
 // via an io.Writer?
 type Rread struct {
@@ -510,6 +760,10 @@ func (msg Rread) Type() MessageType {
 
 func (msg Rread) encode(e *encoder) {
 	e.Encode(msg.Data)
+}
+
+func (msg *Rread) decode(d *decoder) {
+	d.Decode(&msg.Data)
 }
 
 // TODO: Figure out a clean way to allow clients request writes via an
@@ -530,6 +784,12 @@ func (msg Twrite) encode(e *encoder) {
 	e.Encode(msg.Data)
 }
 
+func (msg *Twrite) decode(d *decoder) {
+	d.Decode(&msg.FID)
+	d.Decode(&msg.Offset)
+	d.Decode(&msg.Data)
+}
+
 type Rwrite struct {
 	Count uint32
 }
@@ -540,6 +800,10 @@ func (msg Rwrite) Type() MessageType {
 
 func (msg Rwrite) encode(e *encoder) {
 	e.Encode(msg.Count)
+}
+
+func (msg *Rwrite) decode(d *decoder) {
+	d.Decode(&msg.Count)
 }
 
 type Tclunk struct {
@@ -554,6 +818,10 @@ func (msg Tclunk) encode(e *encoder) {
 	e.Encode(msg.FID)
 }
 
+func (msg *Tclunk) decode(d *decoder) {
+	d.Decode(&msg.FID)
+}
+
 type Rclunk struct {
 }
 
@@ -562,6 +830,9 @@ func (msg Rclunk) Type() MessageType {
 }
 
 func (msg Rclunk) encode(e *encoder) {
+}
+
+func (msg *Rclunk) decode(d *decoder) {
 }
 
 type Tremove struct {
@@ -576,6 +847,10 @@ func (msg Tremove) encode(e *encoder) {
 	e.Encode(msg.FID)
 }
 
+func (msg *Tremove) decode(d *decoder) {
+	d.Decode(&msg.FID)
+}
+
 type Rremove struct {
 }
 
@@ -584,6 +859,9 @@ func (msg Rremove) Type() MessageType {
 }
 
 func (msg Rremove) encode(e *encoder) {
+}
+
+func (msg *Rremove) decode(d *decoder) {
 }
 
 type Tstat struct {
@@ -598,6 +876,10 @@ func (msg Tstat) encode(e *encoder) {
 	e.Encode(msg.FID)
 }
 
+func (msg *Tstat) decode(d *decoder) {
+	d.Decode(&msg.FID)
+}
+
 type Rstat struct {
 	Stat []Stat
 }
@@ -608,6 +890,10 @@ func (msg Rstat) Type() MessageType {
 
 func (msg Rstat) encode(e *encoder) {
 	e.Encode(msg.Stat)
+}
+
+func (msg *Rstat) decode(d *decoder) {
+	d.Decode(&msg.Stat)
 }
 
 type Twstat struct {
@@ -624,6 +910,11 @@ func (msg Twstat) encode(e *encoder) {
 	e.Encode(msg.Stat)
 }
 
+func (msg *Twstat) decode(d *decoder) {
+	d.Decode(&msg.FID)
+	d.Decode(&msg.Stat)
+}
+
 type Rwstat struct {
 }
 
@@ -632,4 +923,7 @@ func (msg Rwstat) Type() MessageType {
 }
 
 func (msg Rwstat) encode(e *encoder) {
+}
+
+func (msg *Rwstat) decode(d *decoder) {
 }
