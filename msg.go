@@ -1,36 +1,28 @@
 package p9
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
 	"math"
-	"sync"
-)
-
-var (
-	bufPool = &sync.Pool{
-		New: func() interface{} {
-			return new(bytes.Buffer)
-		},
-	}
 )
 
 func WriteMessage(w io.Writer, tag uint16, msg Message) error {
-	buf := bufPool.Get().(*bytes.Buffer)
+	e := &encoder{
+		w: w,
+	}
 
-	e := &encoder{w: buf}
+	e.mode = e.size
 	err := e.Encode(msg)
 	if err != nil {
 		return err
 	}
 
-	e.w = w
-	e.Encode(4 + 1 + 2 + uint32(buf.Len()))
+	e.mode = e.write
+	e.Encode(4 + 1 + 2 + e.n)
 	e.Encode(msg.Type())
 	e.Encode(tag)
-	msg.encode(e)
+	e.Encode(msg)
 
 	return e.err
 }
@@ -87,7 +79,19 @@ func (t MessageType) encode(e *encoder) {
 
 type encoder struct {
 	w   io.Writer
+	n   uint32
 	err error
+
+	mode func(interface{}) error
+}
+
+func (e *encoder) size(v interface{}) error {
+	e.n += uint32(binary.Size(v))
+	return nil
+}
+
+func (e *encoder) write(v interface{}) error {
+	return binary.Write(e, binary.LittleEndian, v)
 }
 
 func (e *encoder) Write(data []byte) (int, error) {
@@ -112,31 +116,31 @@ func (e *encoder) Encode(v interface{}) error {
 
 	switch v := v.(type) {
 	case uint8, uint16, uint32, uint64, int8, int16, int32, int64:
-		e.err = binary.Write(e, binary.LittleEndian, v)
+		e.err = e.mode(v)
 		return e.err
 
 	case []byte:
-		err := binary.Write(e, binary.LittleEndian, uint32(len(v)))
+		err := e.mode(uint32(len(v)))
 		if err != nil {
 			e.err = err
 			return err
 		}
 
-		e.err = binary.Write(e, binary.LittleEndian, v)
+		e.err = e.mode(v)
 		return e.err
 
 	case string:
-		err := binary.Write(e, binary.LittleEndian, uint16(len(v)))
+		err := e.mode(uint16(len(v)))
 		if err != nil {
 			e.err = err
 			return err
 		}
 
-		e.err = binary.Write(e, binary.LittleEndian, []byte(v))
+		e.err = e.mode([]byte(v))
 		return e.err
 
 	case []string:
-		err := binary.Write(e, binary.LittleEndian, uint16(len(v)))
+		err := e.mode(uint16(len(v)))
 		if err != nil {
 			e.err = err
 			return err
@@ -153,7 +157,7 @@ func (e *encoder) Encode(v interface{}) error {
 		return e.err
 
 	case []QID:
-		err := binary.Write(e, binary.LittleEndian, uint16(len(v)))
+		err := e.mode(uint16(len(v)))
 		if err != nil {
 			e.err = err
 			return err
