@@ -36,8 +36,13 @@ func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 }
 
 func handleMessages(c net.Conn, handler MessageHandler) {
+	var msize uint32
+	mode := func(f func()) {
+		f()
+	}
+
 	for {
-		tmsg, tag, err := ReadMessage(c)
+		tmsg, tag, err := ReadMessage(c, msize)
 		if err != nil {
 			if err == io.EOF {
 				return
@@ -46,7 +51,7 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 			panic(fmt.Errorf("Error reading message: %v", err))
 		}
 
-		go func() {
+		mode(func() {
 			defer func() {
 				err := recover()
 				if err != nil {
@@ -55,11 +60,22 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 			}()
 
 			rmsg := handler.HandleMessage(tmsg)
+			if rmsg, ok := rmsg.(*Rversion); ok {
+				if msize > 0 {
+					panic("Attempted to set msize twice")
+				}
+
+				msize = rmsg.Msize
+				mode = func(f func()) {
+					go f()
+				}
+			}
+
 			err := WriteMessage(c, tag, rmsg)
 			if err != nil {
 				panic(fmt.Errorf("Error writing message: %v", err))
 			}
-		}()
+		})
 	}
 }
 

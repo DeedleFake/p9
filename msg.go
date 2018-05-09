@@ -1,8 +1,13 @@
 package p9
 
 import (
+	"errors"
 	"io"
 	"math"
+)
+
+var (
+	ErrLargeMessage = errors.New("Message larger than msize")
 )
 
 // WriteMessage writes msg to w with the given tag. It returns an
@@ -26,13 +31,19 @@ func WriteMessage(w io.Writer, tag uint16, msg Message) error {
 
 // ReadMessage reads the next message from r, returning both it and
 // its tag. It also returns an error if any were encountered.
-func ReadMessage(r io.Reader) (Message, uint16, error) {
+//
+// If msize is positive and the message read is greater than it then
+// ErrLargeMessage is returned.
+func ReadMessage(r io.Reader, msize uint32) (Message, uint16, error) {
 	d := &decoder{
 		r: r,
 	}
 
 	var size uint32
 	d.Decode(&size)
+	if (msize > 0) && (size > msize) {
+		return nil, NoTag, ErrLargeMessage
+	}
 
 	var msgType MessageType
 	d.Decode(&msgType)
@@ -110,6 +121,9 @@ func ReadMessage(r io.Reader) (Message, uint16, error) {
 type Message interface {
 	// Type returns the message type.
 	Type() MessageType
+
+	encodable
+	decodable
 }
 
 const (
