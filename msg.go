@@ -41,8 +41,11 @@ func ReadMessage(r io.Reader, msize uint32) (Message, uint16, error) {
 
 	var size uint32
 	d.Decode(&size)
-	if (msize > 0) && (size > msize) {
-		return nil, NoTag, ErrLargeMessage
+	d.r = &LimitedReader{
+		R: d.r,
+		N: size,
+
+		Over: ErrLargeMessage,
 	}
 
 	var msgType MessageType
