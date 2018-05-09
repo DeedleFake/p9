@@ -1,7 +1,6 @@
 package p9
 
 import (
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -16,12 +15,6 @@ func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 
 		go func() {
 			defer c.Close()
-			defer func() {
-				err := recover()
-				if err != nil {
-					log.Printf("Panic in connection handler: %v", err)
-				}
-			}()
 
 			if h, ok := connHandler.(handleConn); ok {
 				h.HandleConn(c)
@@ -48,17 +41,10 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 				return
 			}
 
-			panic(fmt.Errorf("Error reading message: %v", err))
+			log.Printf("Error reading message: %v", err)
 		}
 
 		mode(func() {
-			defer func() {
-				err := recover()
-				if err != nil {
-					log.Printf("Panic in message handler: %v", err)
-				}
-			}()
-
 			rmsg := handler.HandleMessage(tmsg)
 			if rmsg, ok := rmsg.(*Rversion); ok {
 				if msize > 0 {
@@ -73,7 +59,7 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 
 			err := WriteMessage(c, tag, rmsg)
 			if err != nil {
-				panic(fmt.Errorf("Error writing message: %v", err))
+				log.Printf("Error writing message: %v", err)
 			}
 		})
 	}

@@ -19,6 +19,24 @@ func connHandler() p9.MessageHandler {
 				Version: "9P2000",
 			}
 
+		case *p9.Tattach:
+			return &p9.Rattach{
+				QID: p9.QID{
+					Type: p9.QTDir,
+					Path: 0,
+				},
+			}
+
+		case *p9.Twalk:
+			return &p9.Rwalk{
+				WQID: []p9.QID{
+					p9.QID{
+						Type: p9.QTDir,
+						Path: 0,
+					},
+				},
+			}
+
 		default:
 			return &p9.Rerror{
 				Ename: fmt.Sprintf("Unsupported message type: %T", msg),
