@@ -1,48 +1,86 @@
 package main
 
 import (
-	"fmt"
+	"io"
 	"log"
 	"net"
+	"os"
+	"sync"
 
 	"github.com/DeedleFake/p9"
 )
 
+type FS map[string]*File
+
+func (fs FS) Type(path string) (p9.QIDType, bool) {
+	file, ok := fs[path]
+	if !ok {
+		return 0, false
+	}
+	return file.Type, true
+}
+
+func (fs FS) Open(path string) (p9.File, error) {
+	file, ok := fs[path]
+	if !ok {
+		return nil, os.ErrNotExist
+	}
+	return file, nil
+}
+
+type File struct {
+	m sync.RWMutex
+
+	Type p9.QIDType
+	Data []byte
+}
+
+func (file *File) ReadAt(buf []byte, off int64) (int, error) {
+	file.m.RLock()
+	defer file.m.RUnlock()
+
+	if off >= int64(len(file.Data)) {
+		return 0, io.EOF
+	}
+
+	n := copy(buf, file.Data[off:])
+	if n < len(buf) {
+		return n, io.EOF
+	}
+	return n, nil
+}
+
+func (file *File) WriteAt(buf []byte, off int64) (int, error) {
+	file.m.Lock()
+	defer file.m.Unlock()
+
+	file.Data = append(file.Data[:off], append(buf[:len(buf):len(buf)], file.Data[int(off)+len(buf):]...)...)
+	return len(buf), nil
+}
+
+func (file File) Close() error {
+	return nil
+}
+
+func (file *File) Readdir() ([]p9.Stat, error) {
+	panic("Not implemented.")
+}
+
+var (
+	fs = FS{
+		"/": &File{
+			Type: p9.QTDir,
+		},
+
+		"/test": &File{
+			Type: p9.QTFile,
+			Data: []byte("This is a test."),
+		},
+	}
+)
+
 func connHandler() p9.MessageHandler {
-	return p9.MessageHandlerFunc(func(msg p9.Message) p9.Message {
-		log.Printf("%#v", msg)
-
-		switch msg := msg.(type) {
-		case *p9.Tversion:
-			return &p9.Rversion{
-				Msize:   msg.Msize,
-				Version: "9P2000",
-			}
-
-		case *p9.Tattach:
-			return &p9.Rattach{
-				QID: p9.QID{
-					Type: p9.QTDir,
-					Path: 0,
-				},
-			}
-
-		case *p9.Twalk:
-			return &p9.Rwalk{
-				WQID: []p9.QID{
-					p9.QID{
-						Type: p9.QTDir,
-						Path: 0,
-					},
-				},
-			}
-
-		default:
-			return &p9.Rerror{
-				Ename: fmt.Sprintf("Unsupported message type: %T", msg),
-			}
-		}
-	})
+	return p9.HandleFS(fs, 1024)
 }
 
 func main() {
