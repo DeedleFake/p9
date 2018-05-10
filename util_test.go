@@ -33,9 +33,9 @@ func TestLimitedReader(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			r := &p9.LimitedReader{
-				R:    bytes.NewReader(test.in),
-				N:    uint32(len(test.out)),
-				Over: io.ErrUnexpectedEOF,
+				R: bytes.NewReader(test.in),
+				N: uint32(len(test.out)),
+				E: io.ErrUnexpectedEOF,
 			}
 
 			var out []byte

@@ -8,22 +8,19 @@ import (
 // main differences:
 //
 // * N is a uint32, allowing for larger sizes on 32-bit systems.
-// * A custom error can be returned if N becomes less than zero.
+// * A custom error can be returned if N becomes zero.
 type LimitedReader struct {
 	R io.Reader
 	N uint32
-
-	// The error to return if the limit is crossed. If this is nil,
-	// io.EOF is returned.
-	Over error
+	E error
 }
 
 func (lr LimitedReader) err() error {
-	if lr.Over == nil {
+	if lr.E == nil {
 		return io.EOF
 	}
 
-	return lr.Over
+	return lr.E
 }
 
 func (lr *LimitedReader) Read(buf []byte) (int, error) {

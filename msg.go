@@ -44,8 +44,7 @@ func ReadMessage(r io.Reader, msize uint32) (Message, uint16, error) {
 	d.r = &LimitedReader{
 		R: d.r,
 		N: size,
-
-		Over: ErrLargeMessage,
+		E: ErrLargeMessage,
 	}
 
 	var msgType MessageType
