@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"sync"
 )
 
@@ -40,20 +41,28 @@ func HandleFS(fs FileSystem, msize uint32) MessageHandler {
 	}
 }
 
-func (h *fsHandler) setFID(fid uint32, path string) {
-	h.fids.Store(fid, path)
+func (h *fsHandler) setFID(fid uint32, p string) {
+	h.fids.Store(fid, p)
 }
 
-func (h *fsHandler) getQID(path string, t func() (QIDType, bool)) (QID, bool) {
+func (h *fsHandler) getFID(fid uint32) (string, bool) {
+	v, ok := h.fids.Load(fid)
+	if !ok {
+		return "", false
+	}
+	return v.(string), true
+}
+
+func (h *fsHandler) getQID(p string, t func(string) (QIDType, bool)) (QID, bool) {
 	h.qidM.Lock()
 	defer h.qidM.Unlock()
 
-	n, ok := h.qids[path]
+	n, ok := h.qids[p]
 	if ok {
 		return n, true
 	}
 
-	qt, ok := t()
+	qt, ok := t(p)
 	if !ok {
 		return n, false
 	}
@@ -64,7 +73,7 @@ func (h *fsHandler) getQID(path string, t func() (QIDType, bool)) (QID, bool) {
 	}
 
 	h.nextPath++
-	h.qids[path] = n
+	h.qids[p] = n
 
 	return n, true
 }
@@ -84,18 +93,52 @@ func (h *fsHandler) HandleMessage(msg Message) Message {
 		}
 
 	case *Tattach:
-		qid, ok := h.getQID(msg.Aname, func() (QIDType, bool) {
-			return h.fs.Type(msg.Aname)
-		})
+		name := path.Clean(msg.Aname)
+
+		qid, ok := h.getQID(name, h.fs.Type)
 		if !ok {
 			return &Rerror{
 				Ename: os.ErrNotExist.Error(),
 			}
 		}
 
-		h.setFID(msg.FID, msg.Aname)
+		h.setFID(msg.FID, name)
 		return &Rattach{
 			QID: qid,
+		}
+
+	case *Twalk:
+		base, ok := h.getFID(msg.FID)
+		if !ok {
+			return &Rerror{
+				Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+			}
+		}
+
+		qids := make([]QID, 0, len(msg.Wname))
+		for i, name := range msg.Wname {
+			next := path.Join(base, name)
+
+			qid, ok := h.getQID(next, h.fs.Type)
+			if !ok {
+				if i == 0 {
+					return &Rerror{
+						Ename: os.ErrNotExist.Error(),
+					}
+				}
+
+				return &Rwalk{
+					WQID: qids,
+				}
+			}
+
+			qids = append(qids, qid)
+			base = next
+		}
+
+		h.setFID(msg.NewFID, base)
+		return &Rwalk{
+			WQID: qids,
 		}
 
 	default:
