@@ -9,7 +9,7 @@ import (
 
 func TestWriteMessage(t *testing.T) {
 	var buf bytes.Buffer
-	err := p9.WriteMessage(&buf, 3, p9.Tversion{
+	err := p9.WriteMessage(&buf, 3, &p9.Tversion{
 		Version: "This is a test.",
 	})
 	if err != nil {
@@ -18,7 +18,7 @@ func TestWriteMessage(t *testing.T) {
 	t.Log(buf.Bytes())
 	t.Log(buf.Len())
 
-	msg, tag, err := p9.ReadMessage(&buf)
+	msg, tag, err := p9.ReadMessage(&buf, uint32(buf.Len()))
 	if err != nil {
 		t.Fatal(err)
 	}
