@@ -92,6 +92,10 @@ func (h *fsHandler) getFile(fid uint32) (File, bool) {
 	return v.(File), true
 }
 
+func (h *fsHandler) largeCount(count uint32) bool {
+	return 4+1+2+4+count > h.msize
+}
+
 func (h *fsHandler) HandleMessage(msg Message) Message {
 	fmt.Printf("%#v\n", msg)
 
@@ -189,6 +193,32 @@ func (h *fsHandler) HandleMessage(msg Message) Message {
 			QID: qid,
 
 			// What is IOUnit for?
+		}
+
+	case *Tread:
+		file, ok := h.getFile(msg.FID)
+		if !ok {
+			return &Rerror{
+				Ename: "file not open",
+			}
+		}
+
+		if h.largeCount(msg.Count) {
+			return &Rerror{
+				Ename: "read too large",
+			}
+		}
+
+		buf := make([]byte, msg.Count)
+		n, err := file.ReadAt(buf, int64(msg.Offset))
+		if (err != nil) && (err != io.EOF) {
+			return &Rerror{
+				Ename: err.Error(),
+			}
+		}
+
+		return &Rread{
+			Data: buf[:n],
 		}
 
 	default:
