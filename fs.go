@@ -94,130 +94,150 @@ func (h *fsHandler) largeCount(count uint32) bool {
 	return 4+1+2+4+count > h.msize
 }
 
+func (h *fsHandler) version(msg *Tversion) Message {
+	if h.msize > msg.Msize {
+		h.msize = msg.Msize
+	}
+
+	return &Rversion{
+		Msize:   h.msize,
+		Version: "9P2000",
+	}
+}
+
+func (h *fsHandler) attach(msg *Tattach) Message {
+	name := path.Clean(msg.Aname)
+
+	qid, ok := h.getQID(name, h.fs.Type)
+	if !ok {
+		return &Rerror{
+			Ename: os.ErrNotExist.Error(),
+		}
+	}
+
+	h.setPath(msg.FID, name)
+	return &Rattach{
+		QID: qid,
+	}
+}
+
+func (h *fsHandler) walk(msg *Twalk) Message {
+	base, ok := h.getPath(msg.FID)
+	if !ok {
+		return &Rerror{
+			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+		}
+	}
+
+	qids := make([]QID, 0, len(msg.Wname))
+	for i, name := range msg.Wname {
+		next := path.Join(base, name)
+
+		qid, ok := h.getQID(next, h.fs.Type)
+		if !ok {
+			if i == 0 {
+				return &Rerror{
+					Ename: os.ErrNotExist.Error(),
+				}
+			}
+
+			return &Rwalk{
+				WQID: qids,
+			}
+		}
+
+		qids = append(qids, qid)
+		base = next
+	}
+
+	h.setPath(msg.NewFID, base)
+	return &Rwalk{
+		WQID: qids,
+	}
+}
+
+func (h *fsHandler) open(msg *Topen) Message {
+	if _, ok := h.getFile(msg.FID); ok {
+		return &Rerror{
+			Ename: "file already open",
+		}
+	}
+
+	p, ok := h.getPath(msg.FID)
+	if !ok {
+		return &Rerror{
+			Ename: os.ErrNotExist.Error(),
+		}
+	}
+
+	file, err := h.fs.Open(p, msg.Mode)
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
+	qid, ok := h.getQID(p, h.fs.Type)
+	if !ok {
+		// If everything else works, this should never happen.
+		return &Rerror{
+			Ename: "file opened but QID not found",
+		}
+	}
+
+	h.setFile(msg.FID, file)
+	return &Ropen{
+		QID: qid,
+
+		// What is IOUnit for?
+	}
+}
+
+func (h *fsHandler) read(msg *Tread) Message {
+	file, ok := h.getFile(msg.FID)
+	if !ok {
+		return &Rerror{
+			Ename: "file not open",
+		}
+	}
+
+	if h.largeCount(msg.Count) {
+		return &Rerror{
+			Ename: "read too large",
+		}
+	}
+
+	buf := make([]byte, msg.Count)
+	n, err := file.ReadAt(buf, int64(msg.Offset))
+	if (err != nil) && (err != io.EOF) {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
+	return &Rread{
+		Data: buf[:n],
+	}
+}
+
 func (h *fsHandler) HandleMessage(msg Message) Message {
 	fmt.Printf("%#v\n", msg)
 
 	switch msg := msg.(type) {
 	case *Tversion:
-		if h.msize > msg.Msize {
-			h.msize = msg.Msize
-		}
-
-		return &Rversion{
-			Msize:   h.msize,
-			Version: "9P2000",
-		}
+		return h.version(msg)
 
 	case *Tattach:
-		name := path.Clean(msg.Aname)
-
-		qid, ok := h.getQID(name, h.fs.Type)
-		if !ok {
-			return &Rerror{
-				Ename: os.ErrNotExist.Error(),
-			}
-		}
-
-		h.setPath(msg.FID, name)
-		return &Rattach{
-			QID: qid,
-		}
+		return h.attach(msg)
 
 	case *Twalk:
-		base, ok := h.getPath(msg.FID)
-		if !ok {
-			return &Rerror{
-				Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
-			}
-		}
-
-		qids := make([]QID, 0, len(msg.Wname))
-		for i, name := range msg.Wname {
-			next := path.Join(base, name)
-
-			qid, ok := h.getQID(next, h.fs.Type)
-			if !ok {
-				if i == 0 {
-					return &Rerror{
-						Ename: os.ErrNotExist.Error(),
-					}
-				}
-
-				return &Rwalk{
-					WQID: qids,
-				}
-			}
-
-			qids = append(qids, qid)
-			base = next
-		}
-
-		h.setPath(msg.NewFID, base)
-		return &Rwalk{
-			WQID: qids,
-		}
+		return h.walk(msg)
 
 	case *Topen:
-		if _, ok := h.getFile(msg.FID); ok {
-			return &Rerror{
-				Ename: "file already open",
-			}
-		}
-
-		p, ok := h.getPath(msg.FID)
-		if !ok {
-			return &Rerror{
-				Ename: os.ErrNotExist.Error(),
-			}
-		}
-
-		file, err := h.fs.Open(p, msg.Mode)
-		if err != nil {
-			return &Rerror{
-				Ename: err.Error(),
-			}
-		}
-
-		qid, ok := h.getQID(p, h.fs.Type)
-		if !ok {
-			// If everything else works, this should never happen.
-			return &Rerror{
-				Ename: "file opened but QID not found",
-			}
-		}
-
-		h.setFile(msg.FID, file)
-		return &Ropen{
-			QID: qid,
-
-			// What is IOUnit for?
-		}
+		return h.open(msg)
 
 	case *Tread:
-		file, ok := h.getFile(msg.FID)
-		if !ok {
-			return &Rerror{
-				Ename: "file not open",
-			}
-		}
-
-		if h.largeCount(msg.Count) {
-			return &Rerror{
-				Ename: "read too large",
-			}
-		}
-
-		buf := make([]byte, msg.Count)
-		n, err := file.ReadAt(buf, int64(msg.Offset))
-		if (err != nil) && (err != io.EOF) {
-			return &Rerror{
-				Ename: err.Error(),
-			}
-		}
-
-		return &Rread{
-			Data: buf[:n],
-		}
+		return h.read(msg)
 
 	default:
 		return &Rerror{
