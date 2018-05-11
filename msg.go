@@ -727,7 +727,7 @@ func (msg *Tstat) decode(d *decoder) {
 }
 
 type Rstat struct {
-	Stat []Stat
+	Stat Stat
 }
 
 func (msg Rstat) Type() MessageType {
@@ -744,7 +744,7 @@ func (msg *Rstat) decode(d *decoder) {
 
 type Twstat struct {
 	FID  uint32
-	Stat []Stat
+	Stat Stat
 }
 
 func (msg Twstat) Type() MessageType {

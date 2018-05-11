@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"path"
 	"sync"
 
 	"github.com/DeedleFake/p9"
@@ -14,8 +15,8 @@ import (
 
 type FS map[string]p9.File
 
-func (fs FS) Type(path string) (p9.QIDType, bool) {
-	file, ok := fs[path]
+func (fs FS) Type(p string) (p9.QIDType, bool) {
+	file, ok := fs[p]
 	if !ok {
 		return 0, false
 	}
@@ -31,8 +32,30 @@ func (fs FS) Type(path string) (p9.QIDType, bool) {
 	}
 }
 
-func (fs FS) Open(path string, mode uint8) (p9.File, error) {
-	file, ok := fs[path]
+func (fs FS) Stat(p string) (p9.Stat, error) {
+	file, ok := fs[p]
+	if !ok {
+		return p9.Stat{}, os.ErrNotExist
+	}
+
+	dir, name := path.Split(p)
+	switch file.(type) {
+	case *File:
+		name = path.Clean(name)
+	case *Dir:
+		name = path.Clean(dir)
+	}
+	if name == "." {
+		name = "/"
+	}
+
+	return p9.Stat{
+		Name: name,
+	}, nil
+}
+
+func (fs FS) Open(p string, mode uint8) (p9.File, error) {
+	file, ok := fs[p]
 	if !ok {
 		return nil, os.ErrNotExist
 	}

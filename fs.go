@@ -10,6 +10,8 @@ import (
 
 type FileSystem interface {
 	Type(string) (QIDType, bool)
+
+	Stat(string) (Stat, error)
 	Open(string, uint8) (File, error)
 }
 
@@ -53,7 +55,7 @@ func (h *fsHandler) getPath(fid uint32) (string, bool) {
 	return v.(string), true
 }
 
-func (h *fsHandler) getQID(p string, t func(string) (QIDType, bool)) (QID, bool) {
+func (h *fsHandler) getQID(p string) (QID, bool) {
 	h.qidM.Lock()
 	defer h.qidM.Unlock()
 
@@ -62,7 +64,7 @@ func (h *fsHandler) getQID(p string, t func(string) (QIDType, bool)) (QID, bool)
 		return n, true
 	}
 
-	qt, ok := t(p)
+	qt, ok := h.fs.Type(p)
 	if !ok {
 		return n, false
 	}
@@ -108,7 +110,7 @@ func (h *fsHandler) version(msg *Tversion) Message {
 func (h *fsHandler) attach(msg *Tattach) Message {
 	name := path.Clean(msg.Aname)
 
-	qid, ok := h.getQID(name, h.fs.Type)
+	qid, ok := h.getQID(name)
 	if !ok {
 		return &Rerror{
 			Ename: os.ErrNotExist.Error(),
@@ -133,7 +135,7 @@ func (h *fsHandler) walk(msg *Twalk) Message {
 	for i, name := range msg.Wname {
 		next := path.Join(base, name)
 
-		qid, ok := h.getQID(next, h.fs.Type)
+		qid, ok := h.getQID(next)
 		if !ok {
 			if i == 0 {
 				return &Rerror{
@@ -166,7 +168,7 @@ func (h *fsHandler) open(msg *Topen) Message {
 	p, ok := h.getPath(msg.FID)
 	if !ok {
 		return &Rerror{
-			Ename: os.ErrNotExist.Error(),
+			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
 		}
 	}
 
@@ -177,7 +179,7 @@ func (h *fsHandler) open(msg *Topen) Message {
 		}
 	}
 
-	qid, ok := h.getQID(p, h.fs.Type)
+	qid, ok := h.getQID(p)
 	if !ok {
 		// If everything else works, this should never happen.
 		return &Rerror{
@@ -220,6 +222,35 @@ func (h *fsHandler) read(msg *Tread) Message {
 	}
 }
 
+func (h *fsHandler) stat(msg *Tstat) Message {
+	p, ok := h.getPath(msg.FID)
+	if !ok {
+		return &Rerror{
+			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+		}
+	}
+
+	stat, err := h.fs.Stat(p)
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
+	qid, ok := h.getQID(p)
+	if !ok {
+		return &Rerror{
+			Ename: os.ErrNotExist.Error(),
+		}
+	}
+
+	stat.QID = qid
+
+	return &Rstat{
+		Stat: stat,
+	}
+}
+
 func (h *fsHandler) HandleMessage(msg Message) Message {
 	fmt.Printf("%#v\n", msg)
 
@@ -238,6 +269,9 @@ func (h *fsHandler) HandleMessage(msg Message) Message {
 
 	case *Tread:
 		return h.read(msg)
+
+	case *Tstat:
+		return h.stat(msg)
 
 	default:
 		return &Rerror{
