@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"time"
 )
 
 // encodable is a type that knows how to encode itself using an
@@ -121,6 +122,10 @@ func (e *encoder) Encode(v interface{}) error {
 
 		return e.err
 
+	case time.Time:
+		e.err = e.mode(uint32(v.Unix()))
+		return e.err
+
 	default:
 		panic(fmt.Errorf("Unexpected type: %T", v))
 	}
@@ -222,6 +227,17 @@ func (d *decoder) Decode(v interface{}) error {
 			}
 		}
 
+		return d.err
+
+	case *time.Time:
+		var sec uint32
+		err := binary.Read(d, binary.LittleEndian, &sec)
+		if err != nil {
+			d.err = err
+			return err
+		}
+
+		*v = time.Unix(int64(sec), 0)
 		return d.err
 
 	default:

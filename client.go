@@ -121,7 +121,11 @@ func (c *Client) Send(msg Message) (Message, error) {
 		ret: ret,
 	}
 
-	return <-ret, nil
+	rsp := <-ret
+	if err, ok := rsp.(*Rerror); ok {
+		return nil, err
+	}
+	return rsp, nil
 }
 
 type clientMsg struct {

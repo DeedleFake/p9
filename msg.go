@@ -4,10 +4,12 @@ import (
 	"errors"
 	"io"
 	"math"
+	"time"
 )
 
 var (
 	ErrLargeMessage = errors.New("Message larger than msize")
+	ErrLargeStat    = errors.New("Stat larger that declared size")
 )
 
 // WriteMessage writes msg to w with the given tag. It returns an
@@ -247,8 +249,8 @@ type Stat struct {
 	Dev    uint32
 	QID    QID
 	Mode   uint32 // TODO: Make a Mode type?
-	ATime  uint32
-	MTime  uint32
+	ATime  time.Time
+	MTime  time.Time
 	Length uint64
 	Name   string
 	UID    string
@@ -257,8 +259,9 @@ type Stat struct {
 }
 
 func (s Stat) encode(e *encoder) {
-	// size is the size of the data, not including the strings.
-	const size = 41
+	// size is the size of the data, not including the strings
+	// themselves but including their length prefixes.
+	const size = 47
 
 	e.Encode(uint16(size + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)))
 	e.Encode(s.Type)
@@ -277,6 +280,17 @@ func (s Stat) encode(e *encoder) {
 func (s *Stat) decode(d *decoder) {
 	var size uint16
 	d.Decode(&size)
+
+	r := d.r
+	d.r = &LimitedReader{
+		R: r,
+		N: uint32(size),
+		E: ErrLargeStat,
+	}
+	defer func() {
+		d.r = r
+	}()
+
 	d.Decode(&s.Type)
 	d.Decode(&s.Dev)
 	d.Decode(&s.QID)
@@ -413,6 +427,10 @@ type Rerror struct {
 
 func (msg Rerror) Type() MessageType {
 	return RerrorType
+}
+
+func (msg Rerror) Error() string {
+	return msg.Ename
 }
 
 func (msg Rerror) encode(e *encoder) {
