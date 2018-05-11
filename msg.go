@@ -170,6 +170,16 @@ const (
 	RwstatType
 )
 
+const (
+	OREAD uint8 = iota
+	OWRITE
+	ORDWR
+	OEXEC
+
+	OTRUNC  uint8 = 0x10
+	ORCLOSE uint8 = 0x40
+)
+
 func (t MessageType) encode(e *encoder) {
 	e.Encode(uint8(t))
 }

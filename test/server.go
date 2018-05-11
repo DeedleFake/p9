@@ -20,7 +20,7 @@ func (fs FS) Type(path string) (p9.QIDType, bool) {
 	return file.Type, true
 }
 
-func (fs FS) Open(path string) (p9.File, error) {
+func (fs FS) Open(path string, mode uint8) (p9.File, error) {
 	file, ok := fs[path]
 	if !ok {
 		return nil, os.ErrNotExist

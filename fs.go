@@ -10,7 +10,7 @@ import (
 
 type FileSystem interface {
 	Type(string) (QIDType, bool)
-	Open(string) (File, error)
+	Open(string, uint8) (File, error)
 }
 
 type File interface {
@@ -30,6 +30,8 @@ type fsHandler struct {
 	qidM     sync.Mutex
 	nextPath uint64
 	qids     map[string]QID
+
+	files sync.Map
 }
 
 func HandleFS(fs FileSystem, msize uint32) MessageHandler {
@@ -41,11 +43,11 @@ func HandleFS(fs FileSystem, msize uint32) MessageHandler {
 	}
 }
 
-func (h *fsHandler) setFID(fid uint32, p string) {
+func (h *fsHandler) setPath(fid uint32, p string) {
 	h.fids.Store(fid, p)
 }
 
-func (h *fsHandler) getFID(fid uint32) (string, bool) {
+func (h *fsHandler) getPath(fid uint32) (string, bool) {
 	v, ok := h.fids.Load(fid)
 	if !ok {
 		return "", false
@@ -78,6 +80,18 @@ func (h *fsHandler) getQID(p string, t func(string) (QIDType, bool)) (QID, bool)
 	return n, true
 }
 
+func (h *fsHandler) setFile(fid uint32, file File) {
+	h.files.Store(fid, file)
+}
+
+func (h *fsHandler) getFile(fid uint32) (File, bool) {
+	v, ok := h.files.Load(fid)
+	if !ok {
+		return nil, false
+	}
+	return v.(File), true
+}
+
 func (h *fsHandler) HandleMessage(msg Message) Message {
 	fmt.Printf("%#v\n", msg)
 
@@ -102,13 +116,13 @@ func (h *fsHandler) HandleMessage(msg Message) Message {
 			}
 		}
 
-		h.setFID(msg.FID, name)
+		h.setPath(msg.FID, name)
 		return &Rattach{
 			QID: qid,
 		}
 
 	case *Twalk:
-		base, ok := h.getFID(msg.FID)
+		base, ok := h.getPath(msg.FID)
 		if !ok {
 			return &Rerror{
 				Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
@@ -136,12 +150,50 @@ func (h *fsHandler) HandleMessage(msg Message) Message {
 			base = next
 		}
 
-		h.setFID(msg.NewFID, base)
+		h.setPath(msg.NewFID, base)
 		return &Rwalk{
 			WQID: qids,
 		}
 
+	case *Topen:
+		if _, ok := h.getFile(msg.FID); ok {
+			return &Rerror{
+				Ename: "file already open",
+			}
+		}
+
+		p, ok := h.getPath(msg.FID)
+		if !ok {
+			return &Rerror{
+				Ename: os.ErrNotExist.Error(),
+			}
+		}
+
+		file, err := h.fs.Open(p, msg.Mode)
+		if err != nil {
+			return &Rerror{
+				Ename: err.Error(),
+			}
+		}
+
+		qid, ok := h.getQID(p, h.fs.Type)
+		if !ok {
+			// If everything else works, this should never happen.
+			return &Rerror{
+				Ename: "file opened but QID not found",
+			}
+		}
+
+		h.setFile(msg.FID, file)
+		return &Ropen{
+			QID: qid,
+
+			// What is IOUnit for?
+		}
+
 	default:
-		panic(fmt.Errorf("Unexpected message type: %T", msg))
+		return &Rerror{
+			Ename: fmt.Sprintf("Unexpected message type: %T", msg),
+		}
 	}
 }
