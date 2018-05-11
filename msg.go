@@ -119,6 +119,18 @@ func ReadMessage(r io.Reader, msize uint32) (Message, uint16, error) {
 	return msg, tag, d.err
 }
 
+func EncodeDir(w io.Writer, dir []Stat) error {
+	e := &encoder{
+		w: w,
+	}
+	e.mode = e.write
+
+	for _, stat := range dir {
+		e.Encode(stat)
+	}
+	return e.err
+}
+
 // A Message is any 9P message, either T or R, minus the tag.
 type Message interface {
 	// Type returns the message type.

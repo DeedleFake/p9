@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
@@ -10,14 +12,23 @@ import (
 	"github.com/DeedleFake/p9"
 )
 
-type FS map[string]*File
+type FS map[string]p9.File
 
 func (fs FS) Type(path string) (p9.QIDType, bool) {
 	file, ok := fs[path]
 	if !ok {
 		return 0, false
 	}
-	return file.Type, true
+
+	switch file.(type) {
+	case *File:
+		return p9.QTFile, true
+	case Dir:
+		return p9.QTDir, true
+
+	default:
+		panic(fmt.Errorf("Unexpected type: %T", file))
+	}
 }
 
 func (fs FS) Open(path string, mode uint8) (p9.File, error) {
@@ -62,18 +73,27 @@ func (file File) Close() error {
 	return nil
 }
 
-func (file *File) Readdir() ([]p9.Stat, error) {
+type Dir []string
+
+func (d Dir) ReadAt(buf []byte, off int64) (int, error) {
 	panic("Not implemented.")
+}
+
+func (d Dir) WriteAt(buf []byte, off int64) (int, error) {
+	return 0, errors.New("can't write to directory")
+}
+
+func (d Dir) Close() error {
+	return nil
 }
 
 var (
 	fs = FS{
-		"/": &File{
-			Type: p9.QTDir,
+		"/": Dir{
+			"test",
 		},
 
 		"/test": &File{
-			Type: p9.QTFile,
 			Data: []byte("This is a test."),
 		},
 	}

@@ -17,8 +17,6 @@ type File interface {
 	io.ReaderAt
 	io.WriterAt
 	io.Closer
-
-	Readdir() ([]Stat, error)
 }
 
 type fsHandler struct {
