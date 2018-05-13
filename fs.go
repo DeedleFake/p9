@@ -19,6 +19,9 @@ import (
 type FileSystem interface {
 	// Type returns the type of the file at the given path. If no such
 	// file exists, it should return false.
+	//
+	// TODO: This overlaps with Stat() a bit. It's possible it should be
+	// removed.
 	Type(path string) (QIDType, bool)
 
 	// Stat returns a DirEntry giving info about the file or directory
@@ -34,6 +37,19 @@ type FileSystem interface {
 	// Open opens the file at path in the given mode. If an error is
 	// returned, it will be transmitted to the client.
 	Open(path string, mode uint8) (File, error)
+
+	// Create creates and opens a file at path with the given perms and
+	// mode. If an error is returned, it will be transmitted to the
+	// client.
+	Create(path string, perm uint32, mode uint8) (File, error)
+}
+
+// IOUnitFS is implemented by FileSystems that want to report an
+// IOUnit value to clients when open and create requests are made. An
+// IOUnit value lets the client know the maximum amount of data during
+// reads and writes that is guarunteed to be an atomic operation.
+type IOUnitFS interface {
+	IOUnit() uint32
 }
 
 // File is the interface implemented by files being dealt with by a
@@ -350,16 +366,57 @@ func (h *fsHandler) open(msg *Topen) Message {
 		}
 	}
 
+	var iounit uint32
+	if unit, ok := h.fs.(IOUnitFS); ok {
+		iounit = unit.IOUnit()
+	}
+
 	h.setFile(msg.FID, file)
 	return &Ropen{
-		QID: qid,
-
-		// What is IOUnit for?
+		QID:    qid,
+		IOUnit: iounit,
 	}
 }
 
 func (h *fsHandler) create(msg *Tcreate) Message {
-	panic(fmt.Errorf("%#v", msg))
+	if _, ok := h.getFile(msg.FID); ok {
+		return &Rerror{
+			Ename: "file already open",
+		}
+	}
+
+	base, ok := h.getPath(msg.FID)
+	if !ok {
+		return &Rerror{
+			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+		}
+	}
+	p := path.Join(base, msg.Name)
+
+	file, err := h.fs.Create(p, msg.Perm, msg.Mode)
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
+	qid, ok := h.getQID(p)
+	if !ok {
+		return &Rerror{
+			Ename: "file created but QID not found",
+		}
+	}
+
+	var iounit uint32
+	if unit, ok := h.fs.(IOUnitFS); ok {
+		iounit = unit.IOUnit()
+	}
+
+	h.setFile(msg.FID, file)
+	return &Rcreate{
+		QID:    qid,
+		IOUnit: iounit,
+	}
 }
 
 func (h *fsHandler) read(msg *Tread) Message {

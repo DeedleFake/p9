@@ -63,6 +63,21 @@ func (fs FS) Open(p string, mode uint8) (p9.File, error) {
 	return file, nil
 }
 
+func (fs FS) Create(p string, perm uint32, mode uint8) (p9.File, error) {
+	dir, name := path.Split(p)
+
+	fs[dir].(Dir)[name] = p9.DirEntry{
+		Type: p9.QTFile,
+		Name: name,
+	}
+
+	fs[name] = &File{
+		t: p9.QTFile,
+	}
+
+	return fs[name], nil
+}
+
 type File struct {
 	m sync.RWMutex
 
