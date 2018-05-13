@@ -703,7 +703,7 @@ func (h *fsHandler) HandleMessage(msg Message) Message {
 
 func (h *fsHandler) Close() error {
 	h.files.Range(func(k, v interface{}) bool {
-		v.(File).Close()
+		v.(File).Close() // nolint
 		return true
 	})
 

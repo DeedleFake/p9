@@ -20,7 +20,7 @@ func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 		}
 
 		go func() {
-			defer c.Close()
+			defer c.Close() // nolint
 
 			if h, ok := connHandler.(handleConn); ok {
 				h.HandleConn(c)
@@ -31,7 +31,7 @@ func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 
 			mh := connHandler.MessageHandler()
 			if c, ok := mh.(io.Closer); ok {
-				defer c.Close()
+				defer c.Close() // nolint
 			}
 
 			handleMessages(c, mh)
