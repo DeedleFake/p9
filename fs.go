@@ -389,7 +389,28 @@ func (h *fsHandler) write(msg *Twrite) Message {
 }
 
 func (h *fsHandler) clunk(msg *Tclunk) Message {
-	panic("Not implemented.")
+	rsp := Message(new(Rclunk))
+
+	file, ok := h.getFile(msg.FID)
+	switch ok {
+	case true:
+		err := file.Close()
+		if err != nil {
+			rsp = &Rerror{
+				Ename: err.Error(),
+			}
+		}
+	case false:
+		rsp = &Rerror{
+			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+		}
+	}
+
+	h.fids.Delete(msg.FID)
+	h.files.Delete(msg.FID)
+	h.dirs.Delete(msg.FID)
+
+	return rsp
 }
 
 func (h *fsHandler) remove(msg *Tremove) Message {
