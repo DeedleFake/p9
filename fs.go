@@ -42,6 +42,9 @@ type FileSystem interface {
 	// mode. If an error is returned, it will be transmitted to the
 	// client.
 	Create(path string, perm uint32, mode uint8) (File, error)
+
+	// Remove deletes the file at path, returning any errors encountered.
+	Remove(path string) error
 }
 
 // IOUnitFS is implemented by FileSystems that want to report an
@@ -533,7 +536,24 @@ func (h *fsHandler) clunk(msg *Tclunk) Message {
 }
 
 func (h *fsHandler) remove(msg *Tremove) Message {
-	panic(fmt.Errorf("%#v", msg))
+	p, ok := h.getPath(msg.FID)
+	if !ok {
+		return &Rerror{
+			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+		}
+	}
+
+	err := h.fs.Remove(p)
+	h.clunk(&Tclunk{
+		FID: msg.FID,
+	})
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
+	return new(Rremove)
 }
 
 func (h *fsHandler) stat(msg *Tstat) Message {

@@ -78,6 +78,15 @@ func (fs FS) Create(p string, perm uint32, mode uint8) (p9.File, error) {
 	return fs[name], nil
 }
 
+func (fs FS) Remove(p string) error {
+	delete(fs, p)
+
+	dir, name := path.Split(p)
+	delete(fs[dir].(Dir), name)
+
+	return nil
+}
+
 type File struct {
 	m sync.RWMutex
 
