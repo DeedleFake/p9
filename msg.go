@@ -6,8 +6,10 @@ import (
 	"math"
 )
 
+// Errors that are returned when messages lie about their own sizes.
 var (
 	ErrLargeMessage = errors.New("Message larger than msize")
+	ErrLargeStat    = errors.New("Stat larger that declared size")
 )
 
 // WriteMessage writes msg to w with the given tag. It returns an
@@ -139,6 +141,7 @@ const (
 // MessageType is the 8-bit identifier of a message's type.
 type MessageType uint8
 
+// Types returnes by Message implementations' Type() methods.
 const (
 	TversionType MessageType = 100 + iota
 	RversionType
@@ -170,6 +173,17 @@ const (
 	RwstatType
 )
 
+// File open modes and flags.
+const (
+	OREAD uint8 = iota
+	OWRITE
+	ORDWR
+	OEXEC
+
+	OTRUNC  uint8 = 0x10
+	ORCLOSE uint8 = 0x40
+)
+
 func (t MessageType) encode(e *encoder) {
 	e.Encode(uint8(t))
 }
@@ -178,102 +192,12 @@ func (t *MessageType) decode(d *decoder) {
 	d.Decode((*uint8)(t))
 }
 
-// QID represents a QID value.
-type QID struct {
-	Type    QIDType
-	Version uint32
-	Path    uint64
-}
-
-func (qid QID) encode(e *encoder) {
-	e.Encode(qid.Type)
-	e.Encode(qid.Version)
-	e.Encode(qid.Path)
-}
-
-func (qid *QID) decode(d *decoder) {
-	d.Decode(&qid.Type)
-	d.Decode(&qid.Version)
-	d.Decode(&qid.Path)
-}
-
-// QIDType represents an 8-bit QID type identifier.
-type QIDType uint8
-
-const (
-	QTFile    QIDType = 0
-	QTSymlink QIDType = 1 << iota
-	QTTmp
-	QTAuth
-	QTMount
-	QTExcl
-	QTAppend
-	QTDir
-)
-
-func (t QIDType) encode(e *encoder) {
-	e.Encode(uint8(t))
-}
-
-func (t *QIDType) decode(d *decoder) {
-	d.Decode((*uint8)(t))
-}
-
-// Stat is a stat value.
-type Stat struct {
-	Type   uint16
-	Dev    uint32
-	QID    QID
-	Mode   uint32 // TODO: Make a Mode type?
-	ATime  uint32
-	MTime  uint32
-	Length uint64
-	Name   string
-	UID    string
-	GID    string
-	MUID   string
-}
-
-func (s Stat) encode(e *encoder) {
-	// size is the size of the data, not including the strings.
-	const size = 41
-
-	e.Encode(uint16(size + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)))
-	e.Encode(s.Type)
-	e.Encode(s.Dev)
-	e.Encode(s.QID)
-	e.Encode(s.Mode)
-	e.Encode(s.ATime)
-	e.Encode(s.MTime)
-	e.Encode(s.Length)
-	e.Encode(s.Name)
-	e.Encode(s.UID)
-	e.Encode(s.GID)
-	e.Encode(s.MUID)
-}
-
-func (s *Stat) decode(d *decoder) {
-	var size uint16
-	d.Decode(&size)
-	d.Decode(&s.Type)
-	d.Decode(&s.Dev)
-	d.Decode(&s.QID)
-	d.Decode(&s.Mode)
-	d.Decode(&s.ATime)
-	d.Decode(&s.MTime)
-	d.Decode(&s.Length)
-	d.Decode(&s.Name)
-	d.Decode(&s.UID)
-	d.Decode(&s.GID)
-	d.Decode(&s.MUID)
-}
-
-type Tversion struct {
+type Tversion struct { // nolint
 	Msize   uint32
 	Version string
 }
 
-func (msg Tversion) Type() MessageType {
+func (msg Tversion) Type() MessageType { // nolint
 	return TversionType
 }
 
@@ -287,12 +211,12 @@ func (msg *Tversion) decode(d *decoder) {
 	d.Decode(&msg.Version)
 }
 
-type Rversion struct {
+type Rversion struct { // nolint
 	Msize   uint32
 	Version string
 }
 
-func (msg Rversion) Type() MessageType {
+func (msg Rversion) Type() MessageType { // nolint
 	return RversionType
 }
 
@@ -306,13 +230,13 @@ func (msg *Rversion) decode(d *decoder) {
 	d.Decode(&msg.Version)
 }
 
-type Tauth struct {
+type Tauth struct { // nolint
 	AFID  uint32
 	Uname string
 	Aname string
 }
 
-func (msg Tauth) Type() MessageType {
+func (msg Tauth) Type() MessageType { // nolint
 	return TauthType
 }
 
@@ -328,11 +252,11 @@ func (msg *Tauth) decode(d *decoder) {
 	d.Decode(&msg.Aname)
 }
 
-type Rauth struct {
+type Rauth struct { // nolint
 	AQID QID
 }
 
-func (msg Rauth) Type() MessageType {
+func (msg Rauth) Type() MessageType { // nolint
 	return RauthType
 }
 
@@ -344,14 +268,14 @@ func (msg *Rauth) decode(d *decoder) {
 	d.Decode(&msg.AQID)
 }
 
-type Tattach struct {
+type Tattach struct { // nolint
 	FID   uint32
 	AFID  uint32
 	Uname string
 	Aname string
 }
 
-func (msg Tattach) Type() MessageType {
+func (msg Tattach) Type() MessageType { // nolint
 	return TattachType
 }
 
@@ -369,11 +293,11 @@ func (msg *Tattach) decode(d *decoder) {
 	d.Decode(&msg.Aname)
 }
 
-type Rattach struct {
+type Rattach struct { // nolint
 	QID QID
 }
 
-func (msg Rattach) Type() MessageType {
+func (msg Rattach) Type() MessageType { // nolint
 	return RattachType
 }
 
@@ -385,12 +309,18 @@ func (msg *Rattach) decode(d *decoder) {
 	d.Decode(&msg.QID)
 }
 
+// Rerror is a special response that represents an error. As a special
+// case, this type also implements error for convenience.
 type Rerror struct {
 	Ename string
 }
 
-func (msg Rerror) Type() MessageType {
+func (msg Rerror) Type() MessageType { // nolint
 	return RerrorType
+}
+
+func (msg Rerror) Error() string { // nolint
+	return msg.Ename
 }
 
 func (msg Rerror) encode(e *encoder) {
@@ -401,11 +331,11 @@ func (msg *Rerror) decode(d *decoder) {
 	d.Decode(&msg.Ename)
 }
 
-type Tflush struct {
+type Tflush struct { // nolint
 	OldTag uint16
 }
 
-func (msg Tflush) Type() MessageType {
+func (msg Tflush) Type() MessageType { // nolint
 	return TflushType
 }
 
@@ -417,10 +347,10 @@ func (msg *Tflush) decode(d *decoder) {
 	d.Decode(&msg.OldTag)
 }
 
-type Rflush struct {
+type Rflush struct { // nolint
 }
 
-func (msg Rflush) Type() MessageType {
+func (msg Rflush) Type() MessageType { // nolint
 	return RflushType
 }
 
@@ -430,13 +360,13 @@ func (msg Rflush) encode(e *encoder) {
 func (msg *Rflush) decode(d *decoder) {
 }
 
-type Twalk struct {
+type Twalk struct { // nolint
 	FID    uint32
 	NewFID uint32
 	Wname  []string
 }
 
-func (msg Twalk) Type() MessageType {
+func (msg Twalk) Type() MessageType { // nolint
 	return TwalkType
 }
 
@@ -452,11 +382,11 @@ func (msg *Twalk) decode(d *decoder) {
 	d.Decode(&msg.Wname)
 }
 
-type Rwalk struct {
+type Rwalk struct { // nolint
 	WQID []QID
 }
 
-func (msg Rwalk) Type() MessageType {
+func (msg Rwalk) Type() MessageType { // nolint
 	return RwalkType
 }
 
@@ -468,12 +398,12 @@ func (msg *Rwalk) decode(d *decoder) {
 	d.Decode(&msg.WQID)
 }
 
-type Topen struct {
+type Topen struct { // nolint
 	FID  uint32
 	Mode uint8 // TODO: Make a Mode type?
 }
 
-func (msg Topen) Type() MessageType {
+func (msg Topen) Type() MessageType { // nolint
 	return TopenType
 }
 
@@ -487,12 +417,12 @@ func (msg *Topen) decode(d *decoder) {
 	d.Decode(&msg.Mode)
 }
 
-type Ropen struct {
+type Ropen struct { // nolint
 	QID    QID
 	IOUnit uint32
 }
 
-func (msg Ropen) Type() MessageType {
+func (msg Ropen) Type() MessageType { // nolint
 	return RopenType
 }
 
@@ -506,14 +436,14 @@ func (msg *Ropen) decode(d *decoder) {
 	d.Decode(&msg.IOUnit)
 }
 
-type Tcreate struct {
+type Tcreate struct { // nolint
 	FID  uint32
 	Name string
 	Perm uint32 // TODO: Make a Perm type?
 	Mode uint8  // TODO: Make a Mode type?
 }
 
-func (msg Tcreate) Type() MessageType {
+func (msg Tcreate) Type() MessageType { // nolint
 	return TcreateType
 }
 
@@ -531,12 +461,12 @@ func (msg *Tcreate) decode(d *decoder) {
 	d.Decode(&msg.Mode)
 }
 
-type Rcreate struct {
+type Rcreate struct { // nolint
 	QID    QID
 	IOUnit uint32
 }
 
-func (msg Rcreate) Type() MessageType {
+func (msg Rcreate) Type() MessageType { // nolint
 	return RcreateType
 }
 
@@ -550,13 +480,13 @@ func (msg *Rcreate) decode(d *decoder) {
 	d.Decode(&msg.IOUnit)
 }
 
-type Tread struct {
+type Tread struct { // nolint
 	FID    uint32
 	Offset uint64
 	Count  uint32
 }
 
-func (msg Tread) Type() MessageType {
+func (msg Tread) Type() MessageType { // nolint
 	return TreadType
 }
 
@@ -572,13 +502,11 @@ func (msg *Tread) decode(d *decoder) {
 	d.Decode(&msg.Count)
 }
 
-// TODO: Figure out a clean way to allow handlers to send responses
-// via an io.Writer?
-type Rread struct {
+type Rread struct { // nolint
 	Data []byte
 }
 
-func (msg Rread) Type() MessageType {
+func (msg Rread) Type() MessageType { // nolint
 	return RreadType
 }
 
@@ -590,15 +518,13 @@ func (msg *Rread) decode(d *decoder) {
 	d.Decode(&msg.Data)
 }
 
-// TODO: Figure out a clean way to allow clients request writes via an
-// io.Writer?
-type Twrite struct {
+type Twrite struct { // nolint
 	FID    uint32
 	Offset uint64
 	Data   []byte
 }
 
-func (msg Twrite) Type() MessageType {
+func (msg Twrite) Type() MessageType { // nolint
 	return TwriteType
 }
 
@@ -614,11 +540,11 @@ func (msg *Twrite) decode(d *decoder) {
 	d.Decode(&msg.Data)
 }
 
-type Rwrite struct {
+type Rwrite struct { // nolint
 	Count uint32
 }
 
-func (msg Rwrite) Type() MessageType {
+func (msg Rwrite) Type() MessageType { // nolint
 	return RwriteType
 }
 
@@ -630,11 +556,11 @@ func (msg *Rwrite) decode(d *decoder) {
 	d.Decode(&msg.Count)
 }
 
-type Tclunk struct {
+type Tclunk struct { // nolint
 	FID uint32
 }
 
-func (msg Tclunk) Type() MessageType {
+func (msg Tclunk) Type() MessageType { // nolint
 	return TclunkType
 }
 
@@ -646,10 +572,10 @@ func (msg *Tclunk) decode(d *decoder) {
 	d.Decode(&msg.FID)
 }
 
-type Rclunk struct {
+type Rclunk struct { // nolint
 }
 
-func (msg Rclunk) Type() MessageType {
+func (msg Rclunk) Type() MessageType { // nolint
 	return RclunkType
 }
 
@@ -659,11 +585,11 @@ func (msg Rclunk) encode(e *encoder) {
 func (msg *Rclunk) decode(d *decoder) {
 }
 
-type Tremove struct {
+type Tremove struct { // nolint
 	FID uint32
 }
 
-func (msg Tremove) Type() MessageType {
+func (msg Tremove) Type() MessageType { // nolint
 	return TremoveType
 }
 
@@ -675,10 +601,10 @@ func (msg *Tremove) decode(d *decoder) {
 	d.Decode(&msg.FID)
 }
 
-type Rremove struct {
+type Rremove struct { // nolint
 }
 
-func (msg Rremove) Type() MessageType {
+func (msg Rremove) Type() MessageType { // nolint
 	return RremoveType
 }
 
@@ -688,11 +614,11 @@ func (msg Rremove) encode(e *encoder) {
 func (msg *Rremove) decode(d *decoder) {
 }
 
-type Tstat struct {
+type Tstat struct { // nolint
 	FID uint32
 }
 
-func (msg Tstat) Type() MessageType {
+func (msg Tstat) Type() MessageType { // nolint
 	return TstatType
 }
 
@@ -704,45 +630,49 @@ func (msg *Tstat) decode(d *decoder) {
 	d.Decode(&msg.FID)
 }
 
-type Rstat struct {
-	Stat []Stat
+type Rstat struct { // nolint
+	Stat Stat
 }
 
-func (msg Rstat) Type() MessageType {
+func (msg Rstat) Type() MessageType { // nolint
 	return RstatType
 }
 
 func (msg Rstat) encode(e *encoder) {
+	e.Encode(msg.Stat.size() + 2)
 	e.Encode(msg.Stat)
 }
 
 func (msg *Rstat) decode(d *decoder) {
+	d.Decode(new(uint16)) // size
 	d.Decode(&msg.Stat)
 }
 
-type Twstat struct {
+type Twstat struct { // nolint
 	FID  uint32
-	Stat []Stat
+	Stat Stat
 }
 
-func (msg Twstat) Type() MessageType {
+func (msg Twstat) Type() MessageType { // nolint
 	return TwstatType
 }
 
 func (msg Twstat) encode(e *encoder) {
 	e.Encode(msg.FID)
+	e.Encode(msg.Stat.size())
 	e.Encode(msg.Stat)
 }
 
 func (msg *Twstat) decode(d *decoder) {
 	d.Decode(&msg.FID)
+	d.Decode(new(uint16))
 	d.Decode(&msg.Stat)
 }
 
-type Rwstat struct {
+type Rwstat struct { // nolint
 }
 
-func (msg Rwstat) Type() MessageType {
+func (msg Rwstat) Type() MessageType { // nolint
 	return RwstatType
 }
 

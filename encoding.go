@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"time"
 )
 
 // encodable is a type that knows how to encode itself using an
@@ -52,74 +53,66 @@ func (e *encoder) Write(data []byte) (int, error) {
 }
 
 // Encode handles v using the current encoder mode.
-func (e *encoder) Encode(v interface{}) error {
+func (e *encoder) Encode(v interface{}) {
 	if e.err != nil {
-		return e.err
-	}
-
-	if v, ok := v.(encodable); ok {
-		v.encode(e)
-		return e.err
+		return
 	}
 
 	switch v := v.(type) {
+	case encodable:
+		v.encode(e)
+
 	case uint8, uint16, uint32, uint64, int8, int16, int32, int64:
 		e.err = e.mode(v)
-		return e.err
 
 	case []byte:
 		err := e.mode(uint32(len(v)))
 		if err != nil {
 			e.err = err
-			return err
+			return
 		}
 
 		e.err = e.mode(v)
-		return e.err
 
 	case string:
 		err := e.mode(uint16(len(v)))
 		if err != nil {
 			e.err = err
-			return err
+			return
 		}
 
 		e.err = e.mode([]byte(v))
-		return e.err
 
 	case []string:
 		err := e.mode(uint16(len(v)))
 		if err != nil {
 			e.err = err
-			return err
+			return
 		}
 
 		for _, str := range v {
-			err := e.Encode(str)
-			if err != nil {
-				e.err = err
-				return err
+			e.Encode(str)
+			if e.err != nil {
+				return
 			}
 		}
-
-		return e.err
 
 	case []QID:
 		err := e.mode(uint16(len(v)))
 		if err != nil {
 			e.err = err
-			return err
+			return
 		}
 
 		for _, qid := range v {
-			err := e.Encode(qid)
-			if err != nil {
-				e.err = err
-				return err
+			e.Encode(qid)
+			if e.err != nil {
+				return
 			}
 		}
 
-		return e.err
+	case time.Time:
+		e.err = e.mode(uint32(v.Unix()))
 
 	default:
 		panic(fmt.Errorf("Unexpected type: %T", v))
@@ -146,83 +139,82 @@ func (d *decoder) Read(buf []byte) (int, error) {
 
 // Decode reads and decodes a value from the underlying io.Reader into
 // v.
-func (d *decoder) Decode(v interface{}) error {
+func (d *decoder) Decode(v interface{}) {
 	if d.err != nil {
-		return d.err
-	}
-
-	if v, ok := v.(decodable); ok {
-		v.decode(d)
-		return d.err
+		return
 	}
 
 	switch v := v.(type) {
+	case decodable:
+		v.decode(d)
+
 	case *uint8, *uint16, *uint32, *uint64, *int8, *int16, *int32, *int64:
 		d.err = binary.Read(d, binary.LittleEndian, v)
-		return d.err
 
 	case *[]byte:
 		var size uint32
 		err := binary.Read(d, binary.LittleEndian, &size)
 		if err != nil {
 			d.err = err
-			return err
+			return
 		}
 
 		*v = make([]byte, size)
 		d.err = binary.Read(d, binary.LittleEndian, v)
-		return d.err
 
 	case *string:
 		var size uint16
 		err := binary.Read(d, binary.LittleEndian, &size)
 		if err != nil {
 			d.err = err
-			return err
+			return
 		}
 
 		buf := make([]byte, size)
 		d.err = binary.Read(d, binary.LittleEndian, buf)
 		*v = string(buf)
-		return d.err
 
 	case *[]string:
 		var size uint16
 		err := binary.Read(d, binary.LittleEndian, &size)
 		if err != nil {
 			d.err = err
-			return err
+			return
 		}
 
 		*v = make([]string, size)
 		for i := range *v {
-			err := d.Decode(&(*v)[i])
-			if err != nil {
-				d.err = err
-				return err
+			d.Decode(&(*v)[i])
+			if d.err != nil {
+				return
 			}
 		}
-
-		return d.err
 
 	case *[]QID:
 		var size uint16
 		err := binary.Read(d, binary.LittleEndian, &size)
 		if err != nil {
 			d.err = err
-			return err
+			return
 		}
 
 		*v = make([]QID, size)
 		for i := range *v {
-			err := d.Decode(&(*v)[i])
-			if err != nil {
-				d.err = err
-				return err
+			d.Decode(&(*v)[i])
+			if d.err != nil {
+				return
 			}
 		}
 
-		return d.err
+	case *time.Time:
+		var sec uint32
+		err := binary.Read(d, binary.LittleEndian, &sec)
+		if err != nil {
+			d.err = err
+			return
+		}
+
+		*v = time.Unix(int64(sec), 0)
 
 	default:
 		panic(fmt.Errorf("Unexpected type: %T", v))
