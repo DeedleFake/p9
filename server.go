@@ -29,7 +29,12 @@ func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 				defer h.HandleDisconnect(c)
 			}
 
-			handleMessages(c, connHandler.MessageHandler())
+			mh := connHandler.MessageHandler()
+			if c, ok := mh.(io.Closer); ok {
+				defer c.Close()
+			}
+
+			handleMessages(c, mh)
 		}()
 	}
 }
@@ -100,6 +105,9 @@ func (h ConnHandlerFunc) MessageHandler() MessageHandler { // nolint
 }
 
 // MessageHandler handles messages for a single client connection.
+//
+// If a MessageHandler also implements io.Closer, then Close() will be
+// called when the connection ends. Its return value is ignored.
 type MessageHandler interface {
 	// HandleMessage is passed received messages from the client. Its
 	// return value is then sent back to the client with the same tag.
