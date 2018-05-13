@@ -14,17 +14,32 @@ import (
 // of 9P servers by allowing the implementation to ignore the majority
 // of the details of the protocol.
 //
-// All paths passed to the methods of this system are absolute paths,
-// use slashes, and have been cleaned using path.Clean().
+// With one exception, all paths passed to the methods of this system
+// are absolute paths, use forward slashes as separators, and have
+// been cleaned using path.Clean(). For the exception, see Auth().
 type FileSystem interface {
 	// Stat returns a DirEntry giving info about the file or directory
 	// at the given path. If an error is returned, the text of the error
 	// will be transmitted to the client.
 	Stat(path string) (DirEntry, error)
 
+	// WriteStat applies changes to the metadata of the file at path.
+	// The changes argument contains a map containing key-value pairs
+	// that correspond to the fields of the DirEntry struct. Any fields
+	// that are in the struct but missing from the given map are fields
+	// that should not be changed.
+	//
+	// If an error is returned, it will be transmitted to the client.
+	WriteStat(path string, changes map[string]interface{}) error
+
 	// Auth returns an authentication file. This file can be used to
 	// send authentication information back and forth between the server
 	// and the client.
+	//
+	// Because of the way that FileSystem hides protocol details, such
+	// as FIDs, further calls assume that the Auth command created a
+	// file with the same name as the user. References to this file are
+	// the only references to a file that are not an absolute path.
 	Auth(user, aname string) (File, error)
 
 	// Open opens the file at path in the given mode. If an error is
@@ -127,6 +142,10 @@ type fsHandler struct {
 // filesystem using the provided FileSystem implementation. msize is
 // the maximum size that messages from either the server or the client
 // are allowed to be.
+//
+// BUG: Tflush requests are not currently handled at all by this
+// implementation due to no clear method of stopping a pending call to
+// ReadAt() or WriteAt().
 func HandleFS(fs FileSystem, msize uint32) MessageHandler {
 	return &fsHandler{
 		fs:    fs,
@@ -158,7 +177,7 @@ func (h *fsHandler) getQID(p string) (QID, error) {
 	}
 
 	qt := QTAuth
-	if (len(p) > 0) && (p[0] == '/') {
+	if path.IsAbs(p) {
 		stat, err := h.fs.Stat(p)
 		if !ok {
 			return n, err
@@ -256,7 +275,7 @@ func (h *fsHandler) auth(msg *Tauth) Message {
 		}
 	}
 
-	if (msg.Uname == "") || (msg.Uname[0] == '/') {
+	if path.IsAbs(msg.Uname) {
 		return &Rerror{
 			Ename: "Invalid uname",
 		}
@@ -582,8 +601,56 @@ func (h *fsHandler) stat(msg *Tstat) Message {
 	}
 }
 
-func (h *fsHandler) wstat(msg Message) Message {
-	panic(fmt.Errorf("%#v", msg))
+func (h *fsHandler) wstat(msg *Twstat) Message {
+	p, ok := h.getPath(msg.FID)
+	if !ok {
+		return &Rerror{
+			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+		}
+	}
+
+	changes := make(map[string]interface{})
+
+	if msg.Stat.Mode != 0xFFFFFFFF {
+		changes["Mode"] = msg.Stat.Mode
+	}
+
+	if msg.Stat.ATime.Unix() != -1 {
+		changes["ATime"] = msg.Stat.ATime
+	}
+
+	if msg.Stat.MTime.Unix() != -1 {
+		changes["MTime"] = msg.Stat.MTime
+	}
+
+	if msg.Stat.Length != 0xFFFFFFFFFFFFFFFF {
+		changes["Length"] = msg.Stat.Length
+	}
+
+	if msg.Stat.Name != "" {
+		changes["Name"] = msg.Stat.Name
+	}
+
+	if msg.Stat.UID != "" {
+		changes["UID"] = msg.Stat.UID
+	}
+
+	if msg.Stat.GID != "" {
+		changes["GID"] = msg.Stat.GID
+	}
+
+	if msg.Stat.MUID != "" {
+		changes["MUID"] = msg.Stat.MUID
+	}
+
+	err := h.fs.WriteStat(p, changes)
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
+	return new(Rwstat)
 }
 
 func (h *fsHandler) HandleMessage(msg Message) Message {

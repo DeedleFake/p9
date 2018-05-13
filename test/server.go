@@ -31,6 +31,10 @@ func (fs FS) Stat(p string) (p9.DirEntry, error) {
 	return f, nil
 }
 
+func (fs FS) WriteStat(p string, changes map[string]interface{}) error {
+	return errors.New("wstat is not implemented")
+}
+
 func (fs FS) Auth(user, aname string) (p9.File, error) {
 	return &File{
 		stat: p9.DirEntry{
