@@ -17,13 +17,6 @@ import (
 // All paths passed to the methods of this system are absolute paths,
 // use slashes, and have been cleaned using path.Clean().
 type FileSystem interface {
-	// Type returns the type of the file at the given path. If no such
-	// file exists, it should return false.
-	//
-	// TODO: This overlaps with Stat() a bit. It's possible it should be
-	// removed.
-	Type(path string) (QIDType, bool)
-
 	// Stat returns a DirEntry giving info about the file or directory
 	// at the given path. If an error is returned, the text of the error
 	// will be transmitted to the client.
@@ -72,8 +65,8 @@ type File interface {
 	// Used to handle 9P clunk requests.
 	io.Closer
 
-	// Type returns the type of the file.
-	Type() QIDType
+	// Stat returns the file's corresponding DirEntry.
+	Stat() DirEntry
 
 	// Readdir is called when an attempt is made to read a directory. It
 	// should return a list of entries in the directory or an error. If
@@ -155,21 +148,22 @@ func (h *fsHandler) getPath(fid uint32) (string, bool) {
 	return v.(string), true
 }
 
-func (h *fsHandler) getQID(p string) (QID, bool) {
+func (h *fsHandler) getQID(p string) (QID, error) {
 	h.qidM.Lock()
 	defer h.qidM.Unlock()
 
 	n, ok := h.qids[p]
 	if ok {
-		return n, true
+		return n, nil
 	}
 
 	qt := QTAuth
 	if (len(p) > 0) && (p[0] == '/') {
-		qt, ok = h.fs.Type(p)
+		stat, err := h.fs.Stat(p)
 		if !ok {
-			return n, false
+			return n, err
 		}
+		qt = stat.Type
 	}
 
 	n = QID{
@@ -180,7 +174,7 @@ func (h *fsHandler) getQID(p string) (QID, bool) {
 	h.nextPath++
 	h.qids[p] = n
 
-	return n, true
+	return n, nil
 }
 
 func (h *fsHandler) setFile(fid uint32, file File) {
@@ -208,9 +202,9 @@ func (h *fsHandler) setDir(fid uint32, entries []DirEntry) (io.Reader, error) {
 	e.mode = e.write
 
 	for _, entry := range entries {
-		qid, ok := h.getQID(path.Join(base, entry.Name))
-		if !ok {
-			return nil, os.ErrNotExist
+		qid, err := h.getQID(path.Join(base, entry.Name))
+		if err != nil {
+			return nil, err
 		}
 
 		e.Encode(entry.stat(qid.Path))
@@ -268,10 +262,10 @@ func (h *fsHandler) auth(msg *Tauth) Message {
 		}
 	}
 
-	qid, ok := h.getQID(msg.Uname)
-	if !ok {
+	qid, err := h.getQID(msg.Uname)
+	if err != nil {
 		return &Rerror{
-			Ename: os.ErrNotExist.Error(),
+			Ename: err.Error(),
 		}
 	}
 
@@ -297,10 +291,10 @@ func (h *fsHandler) attach(msg *Tattach) Message {
 		name = "/"
 	}
 
-	qid, ok := h.getQID(name)
-	if !ok {
+	qid, err := h.getQID(name)
+	if err != nil {
 		return &Rerror{
-			Ename: os.ErrNotExist.Error(),
+			Ename: err.Error(),
 		}
 	}
 
@@ -322,11 +316,11 @@ func (h *fsHandler) walk(msg *Twalk) Message {
 	for i, name := range msg.Wname {
 		next := path.Join(base, name)
 
-		qid, ok := h.getQID(next)
-		if !ok {
+		qid, err := h.getQID(next)
+		if err != nil {
 			if i == 0 {
 				return &Rerror{
-					Ename: os.ErrNotExist.Error(),
+					Ename: err.Error(),
 				}
 			}
 
@@ -366,11 +360,11 @@ func (h *fsHandler) open(msg *Topen) Message {
 		}
 	}
 
-	qid, ok := h.getQID(p)
-	if !ok {
+	qid, err := h.getQID(p)
+	if err != nil {
 		// If everything else works, this should never happen.
 		return &Rerror{
-			Ename: "file opened but QID not found",
+			Ename: fmt.Sprintf("File opened but QID not found: %v", err),
 		}
 	}
 
@@ -408,10 +402,10 @@ func (h *fsHandler) create(msg *Tcreate) Message {
 		}
 	}
 
-	qid, ok := h.getQID(p)
-	if !ok {
+	qid, err := h.getQID(p)
+	if err != nil {
 		return &Rerror{
-			Ename: "file created but QID not found",
+			Ename: fmt.Sprintf("File created but QID not found: %v", err),
 		}
 	}
 
@@ -445,7 +439,7 @@ func (h *fsHandler) read(msg *Tread) Message {
 	buf := make([]byte, msg.Count)
 
 	switch {
-	case file.Type()&QTDir != 0:
+	case file.Stat().Type&QTDir != 0:
 		var r io.Reader
 		switch msg.Offset {
 		case 0:
@@ -576,10 +570,10 @@ func (h *fsHandler) stat(msg *Tstat) Message {
 		}
 	}
 
-	qid, ok := h.getQID(p)
-	if !ok {
+	qid, err := h.getQID(p)
+	if err != nil {
 		return &Rerror{
-			Ename: os.ErrNotExist.Error(),
+			Ename: err.Error(),
 		}
 	}
 

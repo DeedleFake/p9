@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"log"
 	"net"
@@ -15,23 +14,6 @@ import (
 )
 
 type FS map[string]p9.File
-
-func (fs FS) Type(p string) (p9.QIDType, bool) {
-	file, ok := fs[p]
-	if !ok {
-		return 0, false
-	}
-
-	switch file.(type) {
-	case *File:
-		return p9.QTFile, true
-	case Dir:
-		return p9.QTDir, true
-
-	default:
-		panic(fmt.Errorf("Unexpected type: %T", file))
-	}
-}
 
 func (fs FS) Stat(p string) (p9.DirEntry, error) {
 	dir, name := path.Split(p)
@@ -51,7 +33,10 @@ func (fs FS) Stat(p string) (p9.DirEntry, error) {
 
 func (fs FS) Auth(user, aname string) (p9.File, error) {
 	return &File{
-		t: p9.QTAuth,
+		stat: p9.DirEntry{
+			Type: p9.QTAuth,
+			Name: aname,
+		},
 	}, nil
 }
 
@@ -66,13 +51,15 @@ func (fs FS) Open(p string, mode uint8) (p9.File, error) {
 func (fs FS) Create(p string, perm uint32, mode uint8) (p9.File, error) {
 	dir, name := path.Split(p)
 
-	fs[dir].(Dir)[name] = p9.DirEntry{
+	entry := p9.DirEntry{
 		Type: p9.QTFile,
 		Name: name,
 	}
 
+	fs[dir].(Dir)[name] = entry
+
 	fs[name] = &File{
-		t: p9.QTFile,
+		stat: entry,
 	}
 
 	return fs[name], nil
@@ -90,7 +77,7 @@ func (fs FS) Remove(p string) error {
 type File struct {
 	m sync.RWMutex
 
-	t    p9.QIDType
+	stat p9.DirEntry
 	Data []byte
 }
 
@@ -130,8 +117,8 @@ func (file File) Close() error {
 	return nil
 }
 
-func (file File) Type() p9.QIDType {
-	return file.t
+func (file File) Stat() p9.DirEntry {
+	return file.stat
 }
 
 func (file File) Readdir() ([]p9.DirEntry, error) {
@@ -152,8 +139,8 @@ func (d Dir) Close() error {
 	return nil
 }
 
-func (d Dir) Type() p9.QIDType {
-	return p9.QTDir
+func (d Dir) Stat() p9.DirEntry {
+	return d[""]
 }
 
 func (d Dir) Readdir() ([]p9.DirEntry, error) {
@@ -184,6 +171,10 @@ var (
 		},
 
 		"/test": &File{
+			stat: p9.DirEntry{
+				Type: p9.QTFile,
+				Name: "test",
+			},
 			Data: []byte("This is a test."),
 		},
 	}
