@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"sort"
 	"sync"
 
 	"github.com/DeedleFake/p9"
@@ -32,26 +33,20 @@ func (fs FS) Type(p string) (p9.QIDType, bool) {
 	}
 }
 
-func (fs FS) Stat(p string) (p9.Stat, error) {
-	file, ok := fs[p]
-	if !ok {
-		return p9.Stat{}, os.ErrNotExist
-	}
-
+func (fs FS) Stat(p string) (p9.DirEntry, error) {
 	dir, name := path.Split(p)
-	switch file.(type) {
-	case *File:
-		name = path.Clean(name)
-	case *Dir:
-		name = path.Clean(dir)
-	}
-	if name == "." {
-		name = "/"
+
+	d, ok := fs[dir].(Dir)
+	if !ok {
+		return p9.DirEntry{}, errors.New("No such directory")
 	}
 
-	return p9.Stat{
-		Name: name,
-	}, nil
+	f, ok := d[name]
+	if !ok {
+		return p9.DirEntry{}, errors.New("No such file")
+	}
+
+	return f, nil
 }
 
 func (fs FS) Open(p string, mode uint8) (p9.File, error) {
@@ -65,7 +60,7 @@ func (fs FS) Open(p string, mode uint8) (p9.File, error) {
 type File struct {
 	m sync.RWMutex
 
-	Type p9.QIDType
+	t    p9.QIDType
 	Data []byte
 }
 
@@ -96,7 +91,15 @@ func (file File) Close() error {
 	return nil
 }
 
-type Dir []string
+func (file File) Type() p9.QIDType {
+	return file.t
+}
+
+func (file File) Readdir() ([]p9.DirEntry, error) {
+	return nil, errors.New("Not a directory")
+}
+
+type Dir map[string]p9.DirEntry
 
 func (d Dir) ReadAt(buf []byte, off int64) (int, error) {
 	panic("Not implemented.")
@@ -110,10 +113,30 @@ func (d Dir) Close() error {
 	return nil
 }
 
+func (d Dir) Type() p9.QIDType {
+	return p9.QTDir
+}
+
+func (d Dir) Readdir() ([]p9.DirEntry, error) {
+	entries := make([]p9.DirEntry, 0, len(d))
+	for _, entry := range d {
+		entries = append(entries, entry)
+	}
+
+	sort.Slice(entries, func(i1, i2 int) bool {
+		return entries[i1].Name < entries[i2].Name
+	})
+
+	return entries, nil
+}
+
 var (
 	fs = FS{
 		"/": Dir{
-			"test",
+			"test": p9.DirEntry{
+				Type: p9.QTFile,
+				Name: "test",
+			},
 		},
 
 		"/test": &File{

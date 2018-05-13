@@ -1,17 +1,19 @@
 package p9
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"sync"
+	"time"
 )
 
 type FileSystem interface {
 	Type(string) (QIDType, bool)
 
-	Stat(string) (Stat, error)
+	Stat(string) (DirEntry, error)
 	Open(string, uint8) (File, error)
 }
 
@@ -19,6 +21,38 @@ type File interface {
 	io.ReaderAt
 	io.WriterAt
 	io.Closer
+
+	Type() QIDType
+	Readdir() ([]DirEntry, error)
+}
+
+type DirEntry struct {
+	Type   QIDType
+	Mode   uint32
+	ATime  time.Time
+	MTime  time.Time
+	Length uint64
+	Name   string
+	UID    string
+	GID    string
+	MUID   string
+}
+
+func (d DirEntry) stat(path uint64) Stat {
+	return Stat{
+		QID: QID{
+			Type: d.Type,
+			Path: path,
+		},
+		Mode:   d.Mode | (uint32(d.Type) << 24),
+		ATime:  d.ATime,
+		MTime:  d.MTime,
+		Length: d.Length,
+		Name:   d.Name,
+		UID:    d.UID,
+		GID:    d.GID,
+		MUID:   d.MUID,
+	}
 }
 
 type fsHandler struct {
@@ -32,6 +66,7 @@ type fsHandler struct {
 	qids     map[string]QID
 
 	files sync.Map
+	dirs  sync.Map
 }
 
 func HandleFS(fs FileSystem, msize uint32) MessageHandler {
@@ -90,6 +125,39 @@ func (h *fsHandler) getFile(fid uint32) (File, bool) {
 		return nil, false
 	}
 	return v.(File), true
+}
+
+func (h *fsHandler) setDir(fid uint32, entries []DirEntry) (io.Reader, error) {
+	base, ok := h.getPath(fid)
+	if !ok {
+		return nil, fmt.Errorf("Unknown FID: %v", fid)
+	}
+
+	var buf bytes.Buffer
+	e := &encoder{
+		w: &buf,
+	}
+	e.mode = e.write
+
+	for _, entry := range entries {
+		qid, ok := h.getQID(path.Join(base, entry.Name))
+		if !ok {
+			return nil, os.ErrNotExist
+		}
+
+		e.Encode(entry.stat(qid.Path))
+	}
+
+	h.dirs.Store(fid, &buf)
+	return &buf, nil
+}
+
+func (h *fsHandler) getDir(fid uint32) (io.Reader, bool) {
+	v, ok := h.dirs.Load(fid)
+	if !ok {
+		return nil, false
+	}
+	return v.(io.Reader), true
 }
 
 func (h *fsHandler) largeCount(count uint32) bool {
@@ -209,12 +277,53 @@ func (h *fsHandler) read(msg *Tread) Message {
 		}
 	}
 
+	var n int
 	buf := make([]byte, msg.Count)
-	n, err := file.ReadAt(buf, int64(msg.Offset))
-	if (err != nil) && (err != io.EOF) {
-		return &Rerror{
-			Ename: err.Error(),
+
+	switch {
+	case file.Type()&QTDir != 0:
+		var r io.Reader
+		switch msg.Offset {
+		case 0:
+			dir, err := file.Readdir()
+			if err != nil {
+				return &Rerror{
+					Ename: err.Error(),
+				}
+			}
+
+			r, err = h.setDir(msg.FID, dir)
+			if err != nil {
+				return &Rerror{
+					Ename: err.Error(),
+				}
+			}
+
+		default:
+			r, ok = h.getDir(msg.FID)
+			if !ok {
+				return &Rerror{
+					Ename: "Dir read with invalid offset",
+				}
+			}
 		}
+
+		tmp, err := r.Read(buf)
+		if err != nil {
+			return &Rerror{
+				Ename: err.Error(),
+			}
+		}
+		n = tmp
+
+	default:
+		tmp, err := file.ReadAt(buf, int64(msg.Offset))
+		if (err != nil) && (err != io.EOF) {
+			return &Rerror{
+				Ename: err.Error(),
+			}
+		}
+		n = tmp
 	}
 
 	return &Rread{
@@ -244,10 +353,8 @@ func (h *fsHandler) stat(msg *Tstat) Message {
 		}
 	}
 
-	stat.QID = qid
-
 	return &Rstat{
-		Stat: stat,
+		Stat: stat.stat(qid.Path),
 	}
 }
 
