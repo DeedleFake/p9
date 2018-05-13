@@ -49,6 +49,12 @@ func (fs FS) Stat(p string) (p9.DirEntry, error) {
 	return f, nil
 }
 
+func (fs FS) Auth(user, aname string) (p9.File, error) {
+	return &File{
+		t: p9.QTAuth,
+	}, nil
+}
+
 func (fs FS) Open(p string, mode uint8) (p9.File, error) {
 	file, ok := fs[p]
 	if !ok {
@@ -133,6 +139,11 @@ func (d Dir) Readdir() ([]p9.DirEntry, error) {
 var (
 	fs = FS{
 		"/": Dir{
+			"": p9.DirEntry{
+				Type: p9.QTDir,
+				Name: ".",
+			},
+
 			"test": p9.DirEntry{
 				Type: p9.QTFile,
 				Name: "test",

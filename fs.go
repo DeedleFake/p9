@@ -26,6 +26,11 @@ type FileSystem interface {
 	// will be transmitted to the client.
 	Stat(path string) (DirEntry, error)
 
+	// Auth returns an authentication file. This file can be used to
+	// send authentication information back and forth between the server
+	// and the client.
+	Auth(user, aname string) (File, error)
+
 	// Open opens the file at path in the given mode. If an error is
 	// returned, it will be transmitted to the client.
 	Open(path string, mode uint8) (File, error)
@@ -140,9 +145,12 @@ func (h *fsHandler) getQID(p string) (QID, bool) {
 		return n, true
 	}
 
-	qt, ok := h.fs.Type(p)
-	if !ok {
-		return n, false
+	qt := QTAuth
+	if (len(p) > 0) && (p[0] == '/') {
+		qt, ok = h.fs.Type(p)
+		if !ok {
+			return n, false
+		}
 	}
 
 	n = QID{
@@ -206,6 +214,12 @@ func (h *fsHandler) largeCount(count uint32) bool {
 }
 
 func (h *fsHandler) version(msg *Tversion) Message {
+	if msg.Version != "9P2000" {
+		return &Rerror{
+			Ename: "Unsupported version",
+		}
+	}
+
 	if h.msize > msg.Msize {
 		h.msize = msg.Msize
 	}
@@ -217,15 +231,47 @@ func (h *fsHandler) version(msg *Tversion) Message {
 }
 
 func (h *fsHandler) auth(msg *Tauth) Message {
-	panic("Not implemented.")
+	aname := path.Clean(msg.Aname)
+	if aname == "." {
+		aname = "/"
+	}
+
+	file, err := h.fs.Auth(msg.Uname, aname)
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
+	if (msg.Uname == "") || (msg.Uname[0] == '/') {
+		return &Rerror{
+			Ename: "Invalid uname",
+		}
+	}
+
+	qid, ok := h.getQID(msg.Uname)
+	if !ok {
+		return &Rerror{
+			Ename: os.ErrNotExist.Error(),
+		}
+	}
+
+	h.setFile(msg.AFID, file)
+
+	return &Rauth{
+		AQID: qid,
+	}
 }
 
 func (h *fsHandler) flush(msg *Tflush) Message {
-	panic("Not implemented.")
+	panic(fmt.Errorf("%#v", msg))
 }
 
 func (h *fsHandler) attach(msg *Tattach) Message {
 	name := path.Clean(msg.Aname)
+	if name == "." {
+		name = "/"
+	}
 
 	qid, ok := h.getQID(name)
 	if !ok {
@@ -313,7 +359,7 @@ func (h *fsHandler) open(msg *Topen) Message {
 }
 
 func (h *fsHandler) create(msg *Tcreate) Message {
-	panic("Not implemented.")
+	panic(fmt.Errorf("%#v", msg))
 }
 
 func (h *fsHandler) read(msg *Tread) Message {
@@ -385,7 +431,23 @@ func (h *fsHandler) read(msg *Tread) Message {
 }
 
 func (h *fsHandler) write(msg *Twrite) Message {
-	panic("Not implemented.")
+	file, ok := h.getFile(msg.FID)
+	if !ok {
+		return &Rerror{
+			Ename: "file not open",
+		}
+	}
+
+	n, err := file.WriteAt(msg.Data, int64(msg.Offset))
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
+	return &Rwrite{
+		Count: uint32(n),
+	}
 }
 
 func (h *fsHandler) clunk(msg *Tclunk) Message {
@@ -414,7 +476,7 @@ func (h *fsHandler) clunk(msg *Tclunk) Message {
 }
 
 func (h *fsHandler) remove(msg *Tremove) Message {
-	panic("Not implemented.")
+	panic(fmt.Errorf("%#v", msg))
 }
 
 func (h *fsHandler) stat(msg *Tstat) Message {
@@ -445,10 +507,12 @@ func (h *fsHandler) stat(msg *Tstat) Message {
 }
 
 func (h *fsHandler) wstat(msg Message) Message {
-	panic("Not implemented.")
+	panic(fmt.Errorf("%#v", msg))
 }
 
 func (h *fsHandler) HandleMessage(msg Message) Message {
+	fmt.Printf("%#v\n", msg)
+
 	switch msg := msg.(type) {
 	case *Tversion:
 		return h.version(msg)
