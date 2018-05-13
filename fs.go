@@ -11,8 +11,8 @@ import (
 )
 
 // FileSystem is an interface that allows high-level implementations
-// of 9P servers by allowing ignoring the majority of the details of
-// the protocol.
+// of 9P servers by allowing the implementation to ignore the majority
+// of the details of the protocol.
 //
 // All paths passed to the methods of this system are absolute paths,
 // use slashes, and have been cleaned using path.Clean().
@@ -283,7 +283,12 @@ func (h *fsHandler) auth(msg *Tauth) Message {
 }
 
 func (h *fsHandler) flush(msg *Tflush) Message {
-	panic(fmt.Errorf("%#v", msg))
+	// TODO: Implement this.
+
+	fmt.Fprintln(os.Stderr, "Warning: Flush support is not implemented.")
+	return &Rerror{
+		Ename: "Tflush is not supported",
+	}
 }
 
 func (h *fsHandler) attach(msg *Tattach) Message {
