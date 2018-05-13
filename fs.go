@@ -216,6 +216,14 @@ func (h *fsHandler) version(msg *Tversion) Message {
 	}
 }
 
+func (h *fsHandler) auth(msg *Tauth) Message {
+	panic("Not implemented.")
+}
+
+func (h *fsHandler) flush(msg *Tflush) Message {
+	panic("Not implemented.")
+}
+
 func (h *fsHandler) attach(msg *Tattach) Message {
 	name := path.Clean(msg.Aname)
 
@@ -304,6 +312,10 @@ func (h *fsHandler) open(msg *Topen) Message {
 	}
 }
 
+func (h *fsHandler) create(msg *Tcreate) Message {
+	panic("Not implemented.")
+}
+
 func (h *fsHandler) read(msg *Tread) Message {
 	file, ok := h.getFile(msg.FID)
 	if !ok {
@@ -372,6 +384,18 @@ func (h *fsHandler) read(msg *Tread) Message {
 	}
 }
 
+func (h *fsHandler) write(msg *Twrite) Message {
+	panic("Not implemented.")
+}
+
+func (h *fsHandler) clunk(msg *Tclunk) Message {
+	panic("Not implemented.")
+}
+
+func (h *fsHandler) remove(msg *Tremove) Message {
+	panic("Not implemented.")
+}
+
 func (h *fsHandler) stat(msg *Tstat) Message {
 	p, ok := h.getPath(msg.FID)
 	if !ok {
@@ -399,12 +423,20 @@ func (h *fsHandler) stat(msg *Tstat) Message {
 	}
 }
 
-func (h *fsHandler) HandleMessage(msg Message) Message {
-	fmt.Printf("%#v\n", msg)
+func (h *fsHandler) wstat(msg Message) Message {
+	panic("Not implemented.")
+}
 
+func (h *fsHandler) HandleMessage(msg Message) Message {
 	switch msg := msg.(type) {
 	case *Tversion:
 		return h.version(msg)
+
+	case *Tauth:
+		return h.auth(msg)
+
+	case *Tflush:
+		return h.flush(msg)
 
 	case *Tattach:
 		return h.attach(msg)
@@ -415,11 +447,26 @@ func (h *fsHandler) HandleMessage(msg Message) Message {
 	case *Topen:
 		return h.open(msg)
 
+	case *Tcreate:
+		return h.create(msg)
+
 	case *Tread:
 		return h.read(msg)
 
+	case *Twrite:
+		return h.write(msg)
+
+	case *Tclunk:
+		return h.clunk(msg)
+
+	case *Tremove:
+		return h.remove(msg)
+
 	case *Tstat:
 		return h.stat(msg)
+
+	case *Twstat:
+		return h.wstat(msg)
 
 	default:
 		return &Rerror{
