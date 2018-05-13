@@ -650,10 +650,12 @@ func (msg Rstat) Type() MessageType {
 }
 
 func (msg Rstat) encode(e *encoder) {
+	e.Encode(msg.Stat.size() + 2)
 	e.Encode(msg.Stat)
 }
 
 func (msg *Rstat) decode(d *decoder) {
+	d.Decode(new(uint16)) // size
 	d.Decode(&msg.Stat)
 }
 
@@ -668,11 +670,13 @@ func (msg Twstat) Type() MessageType {
 
 func (msg Twstat) encode(e *encoder) {
 	e.Encode(msg.FID)
+	e.Encode(msg.Stat.size())
 	e.Encode(msg.Stat)
 }
 
 func (msg *Twstat) decode(d *decoder) {
 	d.Decode(&msg.FID)
+	d.Decode(new(uint16))
 	d.Decode(&msg.Stat)
 }
 

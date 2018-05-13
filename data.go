@@ -58,12 +58,12 @@ type Stat struct {
 	MUID   string
 }
 
-func (s Stat) encode(e *encoder) {
-	// size is the size of the data, not including the strings
-	// themselves but including their length prefixes.
-	const size = 47
+func (s Stat) size() uint16 {
+	return uint16(47 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID))
+}
 
-	e.Encode(uint16(size + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID)))
+func (s Stat) encode(e *encoder) {
+	e.Encode(s.size())
 	e.Encode(s.Type)
 	e.Encode(s.Dev)
 	e.Encode(s.QID)
