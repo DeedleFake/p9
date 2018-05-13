@@ -511,8 +511,6 @@ func (h *fsHandler) wstat(msg Message) Message {
 }
 
 func (h *fsHandler) HandleMessage(msg Message) Message {
-	fmt.Printf("%#v\n", msg)
-
 	switch msg := msg.(type) {
 	case *Tversion:
 		return h.version(msg)

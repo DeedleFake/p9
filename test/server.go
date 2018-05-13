@@ -89,7 +89,16 @@ func (file *File) WriteAt(buf []byte, off int64) (int, error) {
 	file.m.Lock()
 	defer file.m.Unlock()
 
-	file.Data = append(file.Data[:off], append(buf[:len(buf):len(buf)], file.Data[int(off)+len(buf):]...)...)
+	if off > int64(len(file.Data)) {
+		return 0, io.EOF
+	}
+
+	ss := int(off) + len(buf)
+	if ss > len(file.Data) {
+		ss = len(file.Data)
+	}
+
+	file.Data = append(file.Data[:off], append(buf[:len(buf):len(buf)], file.Data[ss:]...)...)
 	return len(buf), nil
 }
 
