@@ -10,22 +10,59 @@ import (
 	"time"
 )
 
+// FileSystem is an interface that allows high-level implementations
+// of 9P servers by allowing ignoring the majority of the details of
+// the protocol.
+//
+// All paths passed to the methods of this system are absolute paths,
+// use slashes, and have been cleaned using path.Clean().
 type FileSystem interface {
-	Type(string) (QIDType, bool)
+	// Type returns the type of the file at the given path. If no such
+	// file exists, it should return false.
+	Type(path string) (QIDType, bool)
 
-	Stat(string) (DirEntry, error)
-	Open(string, uint8) (File, error)
+	// Stat returns a DirEntry giving info about the file or directory
+	// at the given path. If an error is returned, the text of the error
+	// will be transmitted to the client.
+	Stat(path string) (DirEntry, error)
+
+	// Open opens the file at path in the given mode. If an error is
+	// returned, it will be transmitted to the client.
+	Open(path string, mode uint8) (File, error)
 }
 
+// File is the interface implemented by files being dealt with by a
+// FileSystem.
+//
+// Note that although this interface implements io.ReaderAt and
+// io.WriterAt, a number of the restrictions placed on those
+// interfaces may be ignored. The implementation need only follow
+// restrictions placed by the 9P protocol specification.
 type File interface {
+	// Used to handle 9P read requests.
 	io.ReaderAt
+
+	// Used to handle 9P write requests.
 	io.WriterAt
+
+	// Used to handle 9P clunk requests.
 	io.Closer
 
+	// Type returns the type of the file.
 	Type() QIDType
+
+	// Readdir is called when an attempt is made to read a directory. It
+	// should return a list of entries in the directory or an error. If
+	// an error is returned, the error will be transmitted to the
+	// client.
 	Readdir() ([]DirEntry, error)
 }
 
+// DirEntry is a smaller version of Stat that eliminates unecessary or
+// duplicate fields.
+//
+// Note that the top 8-bits of the Mode field are overwritten during
+// transmission using the Type field.
 type DirEntry struct {
 	Type   QIDType
 	Mode   uint32
@@ -69,6 +106,10 @@ type fsHandler struct {
 	dirs  sync.Map
 }
 
+// HandleFS returns a MessageHandler that provides a virtual
+// filesystem using the provided FileSystem implementation. msize is
+// the maximum size that messages from either the server or the client
+// are allowed to be.
 func HandleFS(fs FileSystem, msize uint32) MessageHandler {
 	return &fsHandler{
 		fs:    fs,

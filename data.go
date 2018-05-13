@@ -24,6 +24,7 @@ func (qid *QID) decode(d *decoder) {
 // QIDType represents an 8-bit QID type identifier.
 type QIDType uint8
 
+// Valid types of files.
 const (
 	QTFile    QIDType = 0
 	QTSymlink QIDType = 1 << iota

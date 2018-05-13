@@ -8,17 +8,21 @@ import (
 	"time"
 )
 
+// Client provides functionality for sending requests to and receiving
+// responses from a 9P server. It automatically handles message tags,
+// properly blocking until a matching tag response has been received.
 type Client struct {
 	cancel func()
 
-	c   net.Conn
-	tag uint16
+	c net.Conn
 
 	sentMsg chan clientMsg
 	recvMsg chan clientMsg
 	nextTag chan uint16
 }
 
+// NewClient initializes a client that communicates using c. The
+// caller does not need to handle closing c.
 func NewClient(c net.Conn) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -37,11 +41,15 @@ func NewClient(c net.Conn) *Client {
 	return client
 }
 
+// Close cleans up resources created by the client as well as closing
+// the underlying connection.
 func (c *Client) Close() error {
 	c.cancel()
-	return nil
+	return c.c.Close()
 }
 
+// reader reads messages from the connection, sending them to the
+// coordinator to be sent to waiting Send calls.
 func (c *Client) reader(ctx context.Context) {
 	msize := uint32(1024)
 
@@ -77,6 +85,7 @@ func (c *Client) reader(ctx context.Context) {
 	}
 }
 
+// coord coordinates between Send calls and the reader.
 func (c *Client) coord(ctx context.Context) {
 	var nextTag uint16
 	tags := make(map[uint16]chan Message)
@@ -104,6 +113,10 @@ func (c *Client) coord(ctx context.Context) {
 	}
 }
 
+// Send sends a message to the server, blocking until a response has
+// been received. It is safe to place multiple Send calls
+// concurrently, and each will return when the response to that
+// request has been received.
 func (c *Client) Send(msg Message) (Message, error) {
 	tag := NoTag
 	if _, ok := msg.(*Tversion); !ok {
@@ -128,6 +141,7 @@ func (c *Client) Send(msg Message) (Message, error) {
 	return rsp, nil
 }
 
+// Sometimes I think that some type of tuples would be nice...
 type clientMsg struct {
 	tag  uint16
 	recv Message

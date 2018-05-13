@@ -37,8 +37,5 @@ func (lr *LimitedReader) Read(buf []byte) (int, error) {
 	if err != nil {
 		return n, err
 	}
-	if lr.N < 0 {
-		return n, lr.err()
-	}
 	return n, nil
 }

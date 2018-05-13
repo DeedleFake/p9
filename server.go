@@ -6,6 +6,12 @@ import (
 	"net"
 )
 
+// Serve serves a 9P server, listening for new connection on lis and
+// handling them using the provided handler.
+//
+// Note that to avoid a data race, messages from a single client are
+// handled entirely sequentially until an msize has been established,
+// at which point they will be handled concurrently.
 func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 	for {
 		c, err := lis.Accept()
@@ -65,12 +71,17 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 	}
 }
 
+// ConnHandler initializes new MessageHandlers for incoming
+// connections. Unlike HTTP, which is a connectionless protocol, 9P
+// requires that each connection be handled as a unique client session
+// with a stored state, hence this two-step process.
+//
+// If a ConnHandler provides a HandleConn(net.Conn) method, that
+// method will be called when a new connection is made. Similarly, if
+// it provides a HandleDisconnect(net.Conn) method, that method will
+// be called when a connection is ended.
 type ConnHandler interface {
 	MessageHandler() MessageHandler
-
-	// Optional methods:
-	// HandleConn(c net.Conn)
-	// HandleDisconnect(c net.Conn)
 }
 
 type handleConn interface {
@@ -81,18 +92,23 @@ type handleDisconnect interface {
 	HandleDisconnect(c net.Conn)
 }
 
+// ConnHandlerFunc allows a function to be used as a ConnHandler.
 type ConnHandlerFunc func() MessageHandler
 
-func (h ConnHandlerFunc) MessageHandler() MessageHandler {
+func (h ConnHandlerFunc) MessageHandler() MessageHandler { // nolint
 	return h()
 }
 
+// MessageHandler handles messages for a single client connection.
 type MessageHandler interface {
+	// HandleMessage is passed received messages from the client. Its
+	// return value is then sent back to the client with the same tag.
 	HandleMessage(Message) Message
 }
 
+// MessageHandlerFunc allows a function to be used as a MessageHandler.
 type MessageHandlerFunc func(Message) Message
 
-func (h MessageHandlerFunc) HandleMessage(msg Message) Message {
+func (h MessageHandlerFunc) HandleMessage(msg Message) Message { // nolint
 	return h(msg)
 }
