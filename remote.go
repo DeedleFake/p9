@@ -200,6 +200,15 @@ func (file *Remote) Create(p string, perm uint32, mode uint8) (*Remote, error) {
 	return next, nil
 }
 
+// Remove deletes the current file. If the file is open, this also
+// closes it, so there's no need to call both this and Close().
+func (file *Remote) Remove() error {
+	_, err := file.client.Send(&Tremove{
+		FID: file.fid,
+	})
+	return err
+}
+
 // Seek seeks a file. As 9P requires clients to track their own
 // positions in files, this is purely a local operation with the
 // exception of the case of whence being io.SeekEnd, in which case a

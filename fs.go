@@ -420,6 +420,7 @@ func (h *fsHandler) create(msg *Tcreate) Message {
 			Ename: err.Error(),
 		}
 	}
+	h.setPath(msg.FID, p)
 
 	qid, err := h.getQID(p)
 	if err != nil {

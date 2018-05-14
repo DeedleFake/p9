@@ -53,7 +53,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer create.Close()
 
 	_, err = io.WriteString(create, "This is also a test.\n")
 	if err != nil {
@@ -83,6 +82,25 @@ func main() {
 	fmt.Printf("%#v\n", stat)
 
 	entries, err := dir.Readdir()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%v entries:\n", len(entries))
+	for _, entry := range entries {
+		fmt.Printf("\t%v\n", entry.Name)
+	}
+
+	err = create.Remove()
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = dir.Seek(0, 0)
+	if err != nil {
+		panic(err)
+	}
+
+	entries, err = dir.Readdir()
 	if err != nil {
 		panic(err)
 	}
