@@ -39,6 +39,16 @@ func main() {
 		panic(err)
 	}
 
+	_, err = test.Seek(-5, io.SeekEnd)
+	if err != nil {
+		panic(err)
+	}
+
+	_, err = io.Copy(os.Stdout, test)
+	if err != nil {
+		panic(err)
+	}
+
 	dir, err := root.Open("/", p9.OREAD)
 	if err != nil {
 		panic(err)

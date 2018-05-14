@@ -2,6 +2,7 @@ package p9
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"path"
 	"strings"
@@ -134,6 +135,43 @@ func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 	next.qid = open.QID
 
 	return next, nil
+}
+
+func (file *Remote) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case io.SeekStart:
+		if offset < 0 {
+			return int64(file.pos), errors.New("negative offset")
+		}
+
+		file.pos = uint64(offset)
+		return offset, nil
+
+	case io.SeekCurrent:
+		npos := int64(file.pos) + offset
+		if npos < 0 {
+			return int64(file.pos), errors.New("negative offset")
+		}
+
+		file.pos = uint64(npos)
+		return npos, nil
+
+	case io.SeekEnd:
+		stat, err := file.Stat()
+		if err != nil {
+			return int64(file.pos), err
+		}
+
+		npos := int64(stat.Length) + offset
+		if npos < 0 {
+			return int64(file.pos), errors.New("negative offset")
+		}
+
+		file.pos = uint64(npos)
+		return npos, nil
+	}
+
+	panic(fmt.Errorf("Invalid whence: %v", whence))
 }
 
 func (file *Remote) Read(buf []byte) (int, error) {
