@@ -24,7 +24,7 @@ type Client struct {
 }
 
 // NewClient initializes a client that communicates using c. The
-// caller does not need to handle closing c.
+// Client will close c when the Client is closed.
 func NewClient(c net.Conn) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -43,6 +43,17 @@ func NewClient(c net.Conn) *Client {
 	go client.coord(ctx)
 
 	return client
+}
+
+// Dial is a convience function that dials and creates a client in the
+// same step.
+func Dial(network, addr string) (*Client, error) {
+	c, err := net.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewClient(c), nil
 }
 
 // Close cleans up resources created by the client as well as closing
@@ -132,15 +143,15 @@ func (c *Client) Send(msg Message) (Message, error) {
 		tag = <-c.nextTag
 	}
 
-	err := WriteMessage(c.c, tag, msg)
-	if err != nil {
-		return nil, err
-	}
-
 	ret := make(chan Message, 1)
 	c.sentMsg <- clientMsg{
 		tag: tag,
 		ret: ret,
+	}
+
+	err := WriteMessage(c.c, tag, msg)
+	if err != nil {
+		return nil, err
 	}
 
 	rsp := <-ret
