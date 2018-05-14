@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"fmt"
 	"net"
 
 	"github.com/DeedleFake/p9"
@@ -12,17 +12,32 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	defer c.Close()
 
 	client := p9.NewClient(c)
 	defer client.Close()
 
-	msg, err := client.Send(&p9.Tversion{
-		Msize:   1000,
-		Version: "9P2000",
-	})
+	msize, err := client.Handshake(2048)
 	if err != nil {
 		panic(err)
 	}
-	log.Printf("%#v", msg)
+	fmt.Printf("msize: %v\n", msize)
+
+	root, err := client.Attach(nil, "anyone", "/")
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(root.Type())
+
+	test, err := root.Open("test.txt", p9.OREAD)
+	if err != nil {
+		panic(err)
+	}
+	defer test.Close()
+
+	buf := make([]byte, 128)
+	n, err := test.ReadAt(buf, 0)
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%q\n", buf[:n])
 }

@@ -18,7 +18,9 @@ type Client struct {
 
 	sentMsg chan clientMsg
 	recvMsg chan clientMsg
+
 	nextTag chan uint16
+	nextFID chan uint32
 }
 
 // NewClient initializes a client that communicates using c. The
@@ -33,7 +35,9 @@ func NewClient(c net.Conn) *Client {
 
 		sentMsg: make(chan clientMsg),
 		recvMsg: make(chan clientMsg),
+
 		nextTag: make(chan uint16),
+		nextFID: make(chan uint32),
 	}
 	go client.reader(ctx)
 	go client.coord(ctx)
@@ -90,6 +94,8 @@ func (c *Client) coord(ctx context.Context) {
 	var nextTag uint16
 	tags := make(map[uint16]chan Message)
 
+	var nextFID uint32
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -109,6 +115,9 @@ func (c *Client) coord(ctx context.Context) {
 
 		case c.nextTag <- nextTag:
 			nextTag++
+
+		case c.nextFID <- nextFID:
+			nextFID++
 		}
 	}
 }
