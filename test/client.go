@@ -28,7 +28,7 @@ func main() {
 	defer root.Close()
 	fmt.Println(root.Type())
 
-	test, err := root.Open("test.txt", p9.OREAD)
+	test, err := root.Open("test/other.txt", p9.OREAD)
 	if err != nil {
 		panic(err)
 	}

@@ -6,6 +6,7 @@ import (
 	"io"
 	"path"
 	"strings"
+	"sync"
 )
 
 var (
@@ -42,6 +43,7 @@ type Remote struct {
 	fid uint32
 	qid QID
 
+	m   sync.Mutex
 	pos uint64
 }
 
@@ -138,6 +140,9 @@ func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 }
 
 func (file *Remote) Seek(offset int64, whence int) (int64, error) {
+	file.m.Lock()
+	defer file.m.Unlock()
+
 	switch whence {
 	case io.SeekStart:
 		if offset < 0 {
@@ -175,6 +180,9 @@ func (file *Remote) Seek(offset int64, whence int) (int64, error) {
 }
 
 func (file *Remote) Read(buf []byte) (int, error) {
+	file.m.Lock()
+	defer file.m.Unlock()
+
 	n, err := file.ReadAt(buf, int64(file.pos))
 	file.pos += uint64(n)
 	return n, err
@@ -202,6 +210,9 @@ func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
 }
 
 func (file *Remote) Write(data []byte) (int, error) {
+	file.m.Lock()
+	defer file.m.Unlock()
+
 	n, err := file.WriteAt(data, int64(file.pos))
 	file.pos += uint64(n)
 	return n, err
