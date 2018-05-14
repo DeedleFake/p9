@@ -151,11 +151,33 @@ func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
 	read := rsp.(*Rread)
 
 	n := copy(buf, read.Data)
-	if n == 0 {
-		return 0, io.EOF
+	if n < len(buf) {
+		return n, io.EOF
 	}
-
 	return n, nil
+}
+
+func (file *Remote) Write(data []byte) (int, error) {
+	n, err := file.WriteAt(data, int64(file.pos))
+	file.pos += uint64(n)
+	return n, err
+}
+
+func (file *Remote) WriteAt(data []byte, off int64) (int, error) {
+	rsp, err := file.client.Send(&Twrite{
+		FID:    file.fid,
+		Offset: uint64(off),
+		Data:   data,
+	})
+	if err != nil {
+		return 0, err
+	}
+	write := rsp.(*Rwrite)
+
+	if write.Count < uint32(len(data)) {
+		return int(write.Count), io.EOF
+	}
+	return int(write.Count), nil
 }
 
 func (file *Remote) Close() error {
