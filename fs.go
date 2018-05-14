@@ -81,7 +81,7 @@ type File interface {
 	io.Closer
 
 	// Stat returns the file's corresponding DirEntry.
-	Stat() DirEntry
+	Stat() (DirEntry, error)
 
 	// Readdir is called when an attempt is made to read a directory. It
 	// should return a list of entries in the directory or an error. If
@@ -457,8 +457,15 @@ func (h *fsHandler) read(msg *Tread) Message {
 	var n int
 	buf := make([]byte, msg.Count)
 
+	stat, err := file.Stat()
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
 	switch {
-	case file.Stat().Type&QTDir != 0:
+	case stat.Type&QTDir != 0:
 		var r io.Reader
 		switch msg.Offset {
 		case 0:

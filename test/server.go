@@ -121,8 +121,8 @@ func (file File) Close() error {
 	return nil
 }
 
-func (file File) Stat() p9.DirEntry {
-	return file.stat
+func (file File) Stat() (p9.DirEntry, error) {
+	return file.stat, nil
 }
 
 func (file File) Readdir() ([]p9.DirEntry, error) {
@@ -143,8 +143,8 @@ func (d Dir) Close() error {
 	return nil
 }
 
-func (d Dir) Stat() p9.DirEntry {
-	return d[""]
+func (d Dir) Stat() (p9.DirEntry, error) {
+	return d[""], nil
 }
 
 func (d Dir) Readdir() ([]p9.DirEntry, error) {
