@@ -182,6 +182,8 @@ const (
 
 	OTRUNC  uint8 = 0x10
 	ORCLOSE uint8 = 0x40
+
+	OWALK uint8 = 0xFF
 )
 
 func (t MessageType) encode(e *encoder) {

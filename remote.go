@@ -113,29 +113,52 @@ func (file *Remote) walk(p string) (*Remote, error) {
 	if w[0] != "/" {
 		w = strings.Split(w[0], "/")
 	}
-	_, err := file.client.Send(&Twalk{
+	rsp, err := file.client.Send(&Twalk{
 		FID:    file.fid,
 		NewFID: fid,
 		Wname:  w,
 	})
+	walk := rsp.(*Rwalk)
 	if err != nil {
 		return nil, err
+	}
+
+	qid := walk.WQID[len(walk.WQID)-1]
+	if len(walk.WQID) != len(w) {
+		qid = QID{
+			Type:    0xFF,
+			Version: 0xFFFFFFFF,
+			Path:    0xFFFFFFFFFFFFFFFF,
+		}
 	}
 
 	return &Remote{
 		client: file.client,
 		fid:    fid,
+		qid:    qid,
 	}, nil
 }
 
-// Open opens and returns a file relative to the current one. In many cases, this will likely be relative to the filesystem root. For example:
+// Open opens and returns a file relative to the current one. In many
+// cases, this will likely be relative to the filesystem root. For
+// example:
 //
 //    root, _ := client.Attach(nil, "anyone", "/")
 //    file, _ := root.Open("some/file/or/another", p9.OREAD)
+//
+// As a special case, the mode may be OWALK, which will cause the file
+// to be navigated to but not actually opened for reading. This allows
+// the user to, for example, delete files without having to open them
+// first. In this case, if the file does not exist, it may not be an
+// error. Instead, the returned Remote's Type() will return 0xFF.
 func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 	next, err := file.walk(p)
 	if err != nil {
 		return nil, err
+	}
+
+	if mode == OWALK {
+		return next, nil
 	}
 
 	rsp, err := file.client.Send(&Topen{
