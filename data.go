@@ -59,6 +59,20 @@ type Stat struct {
 	MUID   string
 }
 
+func (s Stat) dirEntry() DirEntry {
+	return DirEntry{
+		Type:   s.QID.Type,
+		Mode:   s.Mode,
+		ATime:  s.ATime,
+		MTime:  s.MTime,
+		Length: s.Length,
+		Name:   s.Name,
+		UID:    s.UID,
+		GID:    s.GID,
+		MUID:   s.MUID,
+	}
+}
+
 func (s Stat) size() uint16 {
 	return uint16(47 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID))
 }

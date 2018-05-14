@@ -97,7 +97,10 @@ func (file *Remote) Type() QIDType {
 func (file *Remote) walk(p string) (*Remote, error) {
 	fid := <-file.client.nextFID
 
-	w := strings.Split(path.Clean(p), "/")
+	w := []string{path.Clean(p)}
+	if w[0] != "/" {
+		w = strings.Split(w[0], "/")
+	}
 	_, err := file.client.Send(&Twalk{
 		FID:    file.fid,
 		NewFID: fid,
@@ -140,6 +143,9 @@ func (file *Remote) Read(buf []byte) (int, error) {
 }
 
 func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
+	// TODO: Automatically split reads with large buffers into multiple
+	// requests to account for msize.
+
 	rsp, err := file.client.Send(&Tread{
 		FID:    file.fid,
 		Offset: uint64(off),
@@ -164,6 +170,9 @@ func (file *Remote) Write(data []byte) (int, error) {
 }
 
 func (file *Remote) WriteAt(data []byte, off int64) (int, error) {
+	// TODO: Automatically split writes with large buffers into multiple
+	// requests to account for msize.
+
 	rsp, err := file.client.Send(&Twrite{
 		FID:    file.fid,
 		Offset: uint64(off),
@@ -185,4 +194,36 @@ func (file *Remote) Close() error {
 		FID: file.fid,
 	})
 	return err
+}
+
+func (file *Remote) Stat() (DirEntry, error) {
+	rsp, err := file.client.Send(&Tstat{
+		FID: file.fid,
+	})
+	if err != nil {
+		return DirEntry{}, err
+	}
+	stat := rsp.(*Rstat)
+
+	return stat.Stat.dirEntry(), nil
+}
+
+func (file *Remote) Readdir() ([]DirEntry, error) {
+	d := &decoder{
+		r: file,
+	}
+
+	var entries []DirEntry
+	for {
+		var stat Stat
+		d.Decode(&stat)
+		if d.err != nil {
+			if d.err == io.EOF {
+				d.err = nil
+			}
+			return entries, d.err
+		}
+
+		entries = append(entries, stat.dirEntry())
+	}
 }

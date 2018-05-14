@@ -25,6 +25,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer root.Close()
 	fmt.Println(root.Type())
 
 	test, err := root.Open("test.txt", p9.OREAD)
@@ -36,5 +37,26 @@ func main() {
 	_, err = io.Copy(os.Stdout, test)
 	if err != nil {
 		panic(err)
+	}
+
+	dir, err := root.Open("/", p9.OREAD)
+	if err != nil {
+		panic(err)
+	}
+	defer dir.Close()
+
+	stat, err := dir.Stat()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%#v\n", stat)
+
+	entries, err := dir.Readdir()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Printf("%v entries:\n", len(entries))
+	for _, entry := range entries {
+		fmt.Printf("\t%v\n", entry.Name)
 	}
 }
