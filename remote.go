@@ -50,6 +50,8 @@ type Remote struct {
 	pos uint64
 }
 
+// Auth requests an auth file from the server, returning a Remote
+// representing it or an error if one occurred.
 func (c *Client) Auth(user, aname string) (*Remote, error) {
 	fid := <-c.nextFID
 
@@ -70,6 +72,9 @@ func (c *Client) Auth(user, aname string) (*Remote, error) {
 	}, nil
 }
 
+// Attach attaches to a filesystem provided by the connected server
+// with the given attributes. If no authentication has been done,
+// afile may be nil.
 func (c *Client) Attach(afile *Remote, user, aname string) (*Remote, error) {
 	fid := <-c.nextFID
 
@@ -96,6 +101,7 @@ func (c *Client) Attach(afile *Remote, user, aname string) (*Remote, error) {
 	}, nil
 }
 
+// Type returns the type of the file represented by the Remote.
 func (file *Remote) Type() QIDType {
 	return file.qid.Type
 }
@@ -122,6 +128,10 @@ func (file *Remote) walk(p string) (*Remote, error) {
 	}, nil
 }
 
+// Open opens and returns a file relative to the current one. In many cases, this will likely be relative to the filesystem root. For example:
+//
+//    root, _ := client.Attach(nil, "anyone", "/")
+//    file, _ := root.Open("some/file/or/another", p9.OREAD)
 func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 	next, err := file.walk(p)
 	if err != nil {
@@ -142,6 +152,10 @@ func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 	return next, nil
 }
 
+// Seek seeks a file. As 9P requires clients to track their own
+// positions in files, this is purely a local operation with the
+// exception of the case of whence being io.SeekEnd, in which case a
+// request will be made to the server in order to get the file's size.
 func (file *Remote) Seek(offset int64, whence int) (int64, error) {
 	file.m.Lock()
 	defer file.m.Unlock()
@@ -182,6 +196,8 @@ func (file *Remote) Seek(offset int64, whence int) (int64, error) {
 	panic(fmt.Errorf("Invalid whence: %v", whence))
 }
 
+// Read reads from the file at the internally-tracked offset. For more
+// information, see ReadAt().
 func (file *Remote) Read(buf []byte) (int, error) {
 	file.m.Lock()
 	defer file.m.Unlock()
@@ -216,6 +232,15 @@ func (file *Remote) readPart(buf []byte, off int64) (int, error) {
 	return n, nil
 }
 
+// ReadAt reads from the file at the given offset. If the buffer given
+// will result in a response that is larger than the currently allowed
+// message size, as established by the handshake, it will perform
+// multiple read requests in sequence, reading each into the
+// appropriate parts of the buffer. It returns the number of bytes
+// read and an error, if any occurred.
+//
+// If an error occurs while performing the sequential requests, it
+// will return immediately.
 func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
 	size := len(buf)
 	if size > file.maxBufSize() {
@@ -238,6 +263,8 @@ func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
 	return total, nil
 }
 
+// Write writes to the file at the internally-tracked offset. For more
+// information, see WriteAt().
 func (file *Remote) Write(data []byte) (int, error) {
 	file.m.Lock()
 	defer file.m.Unlock()
@@ -264,6 +291,15 @@ func (file *Remote) writePart(data []byte, off int64) (int, error) {
 	return int(write.Count), nil
 }
 
+// WriteAt writes from the file at the given offset. If the buffer
+// given will result in a request that is larger than the currently
+// allowed message size, as established by the handshake, it will
+// perform multiple write requests in sequence, writing each with
+// appropriate offsets such that the entire buffer is written. It
+// returns the number of bytes written and an error, if any occurred.
+//
+// If an error occurs while performing the sequential requests, it
+// will return immediately.
 func (file *Remote) WriteAt(data []byte, off int64) (int, error) {
 	size := len(data)
 	if size > file.maxBufSize() {
@@ -286,6 +322,8 @@ func (file *Remote) WriteAt(data []byte, off int64) (int, error) {
 	return total, nil
 }
 
+// Close closes the file on the server. Further usage of the file will
+// produce errors.
 func (file *Remote) Close() error {
 	_, err := file.client.Send(&Tclunk{
 		FID: file.fid,
@@ -293,6 +331,7 @@ func (file *Remote) Close() error {
 	return err
 }
 
+// Stat returns the DirEntry representing the file.
 func (file *Remote) Stat() (DirEntry, error) {
 	rsp, err := file.client.Send(&Tstat{
 		FID: file.fid,
@@ -305,6 +344,13 @@ func (file *Remote) Stat() (DirEntry, error) {
 	return stat.Stat.dirEntry(), nil
 }
 
+// Readdir reads the file as a directory, returning the list of
+// directory entries returned by the server.
+//
+// As it returns the full list of entries, it never returns io.EOF.
+//
+// Note that to read this list again, the file must first be seeked to
+// the beginning.
 func (file *Remote) Readdir() ([]DirEntry, error) {
 	d := &decoder{
 		r: file,
