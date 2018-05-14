@@ -118,10 +118,10 @@ func (file *Remote) walk(p string) (*Remote, error) {
 		NewFID: fid,
 		Wname:  w,
 	})
-	walk := rsp.(*Rwalk)
 	if err != nil {
 		return nil, err
 	}
+	walk := rsp.(*Rwalk)
 
 	qid := walk.WQID[len(walk.WQID)-1]
 	if len(walk.WQID) != len(w) {
@@ -171,6 +171,31 @@ func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 	open := rsp.(*Ropen)
 
 	next.qid = open.QID
+
+	return next, nil
+}
+
+// Create creates, with the given permissions, and opens, with the
+// given mode, a new file at p relative to the current file.
+func (file *Remote) Create(p string, perm uint32, mode uint8) (*Remote, error) {
+	dir, name := path.Split(p)
+	next, err := file.walk(path.Clean(dir))
+	if err != nil {
+		return nil, err
+	}
+
+	rsp, err := file.client.Send(&Tcreate{
+		FID:  next.fid,
+		Name: name,
+		Perm: perm,
+		Mode: mode,
+	})
+	if err != nil {
+		return nil, err
+	}
+	create := rsp.(*Rcreate)
+
+	next.qid = create.QID
 
 	return next, nil
 }
