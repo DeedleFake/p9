@@ -169,23 +169,25 @@ var (
 			},
 
 			"test": p9.DirEntry{
-				Type: p9.QTFile,
-				Name: "test",
+				Type:   p9.QTFile,
+				Name:   "test",
+				Length: 16,
 			},
 		},
 
 		"/test": &File{
 			stat: p9.DirEntry{
-				Type: p9.QTFile,
-				Name: "test",
+				Type:   p9.QTFile,
+				Name:   "test",
+				Length: 16,
 			},
-			Data: []byte("This is a test."),
+			Data: []byte("This is a test.\n"),
 		},
 	}
 )
 
 func connHandler() p9.MessageHandler {
-	return p9.HandleFS(fs, 1024)
+	return p9.HandleFS(fs, 2048)
 }
 
 func main() {

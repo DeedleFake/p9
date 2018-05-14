@@ -191,10 +191,14 @@ func (file *Remote) Read(buf []byte) (int, error) {
 	return n, err
 }
 
-func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
-	// TODO: Automatically split reads with large buffers into multiple
-	// requests to account for msize.
+func (file *Remote) maxBufSize() int {
+	file.client.m.RLock()
+	defer file.client.m.RUnlock()
 
+	return int(file.client.msize - uint32(4+1+2+4))
+}
+
+func (file *Remote) readPart(buf []byte, off int64) (int, error) {
 	rsp, err := file.client.Send(&Tread{
 		FID:    file.fid,
 		Offset: uint64(off),
@@ -212,6 +216,28 @@ func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
 	return n, nil
 }
 
+func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
+	size := len(buf)
+	if size > file.maxBufSize() {
+		size = file.maxBufSize()
+	}
+
+	var total int
+	for start := 0; start < len(buf); start += size {
+		end := start + size
+		if end > len(buf) {
+			end = len(buf)
+		}
+
+		n, err := file.readPart(buf[start:end], off+int64(start))
+		total += n
+		if err != nil {
+			return total, err
+		}
+	}
+	return total, nil
+}
+
 func (file *Remote) Write(data []byte) (int, error) {
 	file.m.Lock()
 	defer file.m.Unlock()
@@ -221,10 +247,7 @@ func (file *Remote) Write(data []byte) (int, error) {
 	return n, err
 }
 
-func (file *Remote) WriteAt(data []byte, off int64) (int, error) {
-	// TODO: Automatically split writes with large buffers into multiple
-	// requests to account for msize.
-
+func (file *Remote) writePart(data []byte, off int64) (int, error) {
 	rsp, err := file.client.Send(&Twrite{
 		FID:    file.fid,
 		Offset: uint64(off),
@@ -239,6 +262,28 @@ func (file *Remote) WriteAt(data []byte, off int64) (int, error) {
 		return int(write.Count), io.EOF
 	}
 	return int(write.Count), nil
+}
+
+func (file *Remote) WriteAt(data []byte, off int64) (int, error) {
+	size := len(data)
+	if size > file.maxBufSize() {
+		size = file.maxBufSize()
+	}
+
+	var total int
+	for start := 0; start < len(data); start += size {
+		end := start + size
+		if end > len(data) {
+			end = len(data)
+		}
+
+		n, err := file.writePart(data[start:end], off+int64(start))
+		total += n
+		if err != nil {
+			return total, err
+		}
+	}
+	return total, nil
 }
 
 func (file *Remote) Close() error {

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -21,6 +22,9 @@ type Client struct {
 
 	nextTag chan uint16
 	nextFID chan uint32
+
+	m     sync.RWMutex
+	msize uint32
 }
 
 // NewClient initializes a client that communicates using c. The
@@ -66,7 +70,7 @@ func (c *Client) Close() error {
 // reader reads messages from the connection, sending them to the
 // coordinator to be sent to waiting Send calls.
 func (c *Client) reader(ctx context.Context) {
-	msize := uint32(1024)
+	c.msize = 1024
 
 	for {
 		err := c.c.SetReadDeadline(time.Now().Add(10 * time.Second))
@@ -75,7 +79,7 @@ func (c *Client) reader(ctx context.Context) {
 			return
 		}
 
-		msg, tag, err := ReadMessage(c.c, msize)
+		msg, tag, err := ReadMessage(c.c, c.msize)
 		if err != nil {
 			if (err == io.EOF) || (ctx.Err() != nil) {
 				return
@@ -85,7 +89,9 @@ func (c *Client) reader(ctx context.Context) {
 		}
 
 		if r, ok := msg.(*Rversion); ok {
-			msize = r.Msize
+			c.m.Lock()
+			c.msize = r.Msize
+			c.m.Unlock()
 		}
 
 		select {
