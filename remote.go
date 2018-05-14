@@ -128,9 +128,9 @@ func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 	}
 	open := rsp.(*Ropen)
 
-	file.qid = open.QID
+	next.qid = open.QID
 
-	return file, nil
+	return next, nil
 }
 
 func (file *Remote) Read(buf []byte) (int, error) {

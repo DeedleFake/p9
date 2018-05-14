@@ -2,27 +2,26 @@ package main
 
 import (
 	"fmt"
-	"net"
+	"io"
+	"os"
 
 	"github.com/DeedleFake/p9"
 )
 
 func main() {
-	c, err := net.Dial("tcp", ":5640")
+	c, err := p9.Dial("tcp", ":5640")
 	if err != nil {
 		panic(err)
 	}
+	defer c.Close()
 
-	client := p9.NewClient(c)
-	defer client.Close()
-
-	msize, err := client.Handshake(2048)
+	msize, err := c.Handshake(2048)
 	if err != nil {
 		panic(err)
 	}
 	fmt.Printf("msize: %v\n", msize)
 
-	root, err := client.Attach(nil, "anyone", "/")
+	root, err := c.Attach(nil, "anyone", "")
 	if err != nil {
 		panic(err)
 	}
@@ -34,10 +33,8 @@ func main() {
 	}
 	defer test.Close()
 
-	buf := make([]byte, 128)
-	n, err := test.ReadAt(buf, 0)
+	_, err = io.Copy(os.Stdout, test)
 	if err != nil {
 		panic(err)
 	}
-	fmt.Printf("%q\n", buf[:n])
 }
