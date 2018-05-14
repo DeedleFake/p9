@@ -37,6 +37,9 @@ func (c *Client) Handshake(msize uint32) (uint32, error) {
 
 // Remote provides a file-like interface for performing operations on
 // files presented by a 9P server.
+//
+// Remote implements File, allowing it to be itself served using
+// FileSystem.
 type Remote struct {
 	client *Client
 
