@@ -502,7 +502,7 @@ func (h *fsHandler) read(msg *Tread) Message {
 
 	default:
 		tmp, err := file.ReadAt(buf, int64(msg.Offset))
-		if (err != nil) && (err != io.EOF) {
+		if (err != nil) && !isEOF(err) {
 			return &Rerror{
 				Ename: err.Error(),
 			}

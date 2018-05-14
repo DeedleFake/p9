@@ -42,6 +42,8 @@ func NewClient(c net.Conn) *Client {
 
 		nextTag: make(chan uint16),
 		nextFID: make(chan uint32),
+
+		msize: 1024,
 	}
 	go client.reader(ctx)
 	go client.coord(ctx)
@@ -70,8 +72,6 @@ func (c *Client) Close() error {
 // reader reads messages from the connection, sending them to the
 // coordinator to be sent to waiting Send calls.
 func (c *Client) reader(ctx context.Context) {
-	c.msize = 1024
-
 	for {
 		err := c.c.SetReadDeadline(time.Now().Add(10 * time.Second))
 		if err != nil {

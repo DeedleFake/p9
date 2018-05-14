@@ -315,7 +315,7 @@ func (file *Remote) Readdir() ([]DirEntry, error) {
 		var stat Stat
 		d.Decode(&stat)
 		if d.err != nil {
-			if d.err == io.EOF {
+			if isEOF(d.err) {
 				d.err = nil
 			}
 			return entries, d.err
