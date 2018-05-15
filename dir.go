@@ -52,7 +52,7 @@ func (d Dir) Create(p string, perm uint32, mode uint8) (File, error) {
 }
 
 func (d Dir) Remove(p string) error {
-	panic("Not implemented.")
+	return os.Remove(d.path(p))
 }
 
 type dirFile struct {
