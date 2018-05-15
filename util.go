@@ -2,6 +2,7 @@ package p9
 
 import (
 	"io"
+	"os"
 )
 
 // LimitedReader is a reimplementation of io.LimitedReader with two
@@ -44,5 +45,20 @@ func isEOF(err error) bool {
 
 	default:
 		return err == io.EOF
+	}
+}
+
+func infoToEntry(fi os.FileInfo) DirEntry {
+	t := QTFile
+	if fi.IsDir() {
+		t = QTDir
+	}
+
+	return DirEntry{
+		Type:   t,
+		Mode:   uint32(fi.Mode()),
+		MTime:  fi.ModTime(),
+		Name:   fi.Name(),
+		Length: uint64(fi.Size()),
 	}
 }
