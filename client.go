@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"net"
+	"sync"
 	"time"
 )
 
@@ -18,11 +19,16 @@ type Client struct {
 
 	sentMsg chan clientMsg
 	recvMsg chan clientMsg
+
 	nextTag chan uint16
+	nextFID chan uint32
+
+	m     sync.RWMutex
+	msize uint32
 }
 
 // NewClient initializes a client that communicates using c. The
-// caller does not need to handle closing c.
+// Client will close c when the Client is closed.
 func NewClient(c net.Conn) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -33,12 +39,27 @@ func NewClient(c net.Conn) *Client {
 
 		sentMsg: make(chan clientMsg),
 		recvMsg: make(chan clientMsg),
+
 		nextTag: make(chan uint16),
+		nextFID: make(chan uint32),
+
+		msize: 1024,
 	}
 	go client.reader(ctx)
 	go client.coord(ctx)
 
 	return client
+}
+
+// Dial is a convience function that dials and creates a client in the
+// same step.
+func Dial(network, addr string) (*Client, error) {
+	c, err := net.Dial(network, addr)
+	if err != nil {
+		return nil, err
+	}
+
+	return NewClient(c), nil
 }
 
 // Close cleans up resources created by the client as well as closing
@@ -51,8 +72,6 @@ func (c *Client) Close() error {
 // reader reads messages from the connection, sending them to the
 // coordinator to be sent to waiting Send calls.
 func (c *Client) reader(ctx context.Context) {
-	msize := uint32(1024)
-
 	for {
 		err := c.c.SetReadDeadline(time.Now().Add(10 * time.Second))
 		if err != nil {
@@ -60,7 +79,7 @@ func (c *Client) reader(ctx context.Context) {
 			return
 		}
 
-		msg, tag, err := ReadMessage(c.c, msize)
+		msg, tag, err := ReadMessage(c.c, c.msize)
 		if err != nil {
 			if (err == io.EOF) || (ctx.Err() != nil) {
 				return
@@ -70,7 +89,9 @@ func (c *Client) reader(ctx context.Context) {
 		}
 
 		if r, ok := msg.(*Rversion); ok {
-			msize = r.Msize
+			c.m.Lock()
+			c.msize = r.Msize
+			c.m.Unlock()
 		}
 
 		select {
@@ -89,6 +110,8 @@ func (c *Client) reader(ctx context.Context) {
 func (c *Client) coord(ctx context.Context) {
 	var nextTag uint16
 	tags := make(map[uint16]chan Message)
+
+	var nextFID uint32
 
 	for {
 		select {
@@ -109,6 +132,9 @@ func (c *Client) coord(ctx context.Context) {
 
 		case c.nextTag <- nextTag:
 			nextTag++
+
+		case c.nextFID <- nextFID:
+			nextFID++
 		}
 	}
 }
@@ -123,15 +149,15 @@ func (c *Client) Send(msg Message) (Message, error) {
 		tag = <-c.nextTag
 	}
 
-	err := WriteMessage(c.c, tag, msg)
-	if err != nil {
-		return nil, err
-	}
-
 	ret := make(chan Message, 1)
 	c.sentMsg <- clientMsg{
 		tag: tag,
 		ret: ret,
+	}
+
+	err := WriteMessage(c.c, tag, msg)
+	if err != nil {
+		return nil, err
 	}
 
 	rsp := <-ret

@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"log"
-	"net"
 	"os"
 	"path"
 	"sort"
@@ -117,15 +116,15 @@ func (file *File) WriteAt(buf []byte, off int64) (int, error) {
 	return len(buf), nil
 }
 
-func (file File) Close() error {
+func (file *File) Close() error {
 	return nil
 }
 
-func (file File) Stat() p9.DirEntry {
-	return file.stat
+func (file *File) Stat() (p9.DirEntry, error) {
+	return file.stat, nil
 }
 
-func (file File) Readdir() ([]p9.DirEntry, error) {
+func (file *File) Readdir() ([]p9.DirEntry, error) {
 	return nil, errors.New("Not a directory")
 }
 
@@ -143,8 +142,8 @@ func (d Dir) Close() error {
 	return nil
 }
 
-func (d Dir) Stat() p9.DirEntry {
-	return d[""]
+func (d Dir) Stat() (p9.DirEntry, error) {
+	return d[""], nil
 }
 
 func (d Dir) Readdir() ([]p9.DirEntry, error) {
@@ -169,33 +168,25 @@ var (
 			},
 
 			"test": p9.DirEntry{
-				Type: p9.QTFile,
-				Name: "test",
+				Type:   p9.QTFile,
+				Name:   "test",
+				Length: 16,
 			},
 		},
 
 		"/test": &File{
 			stat: p9.DirEntry{
-				Type: p9.QTFile,
-				Name: "test",
+				Type:   p9.QTFile,
+				Name:   "test",
+				Length: 16,
 			},
-			Data: []byte("This is a test."),
+			Data: []byte("This is a test.\n"),
 		},
 	}
 )
 
-func connHandler() p9.MessageHandler {
-	return p9.HandleFS(fs, 1024)
-}
-
 func main() {
-	lis, err := net.Listen("tcp", "localhost:5640")
-	if err != nil {
-		log.Fatalf("Failed to start listener: %v", err)
-	}
-	defer lis.Close()
-
-	err = p9.Serve(lis, p9.ConnHandlerFunc(connHandler))
+	err := p9.ListenAndServe("tcp", "localhost:5640", p9.FSConnHandler(fs, 2048))
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}

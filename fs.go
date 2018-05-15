@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"sync"
 	"time"
@@ -58,7 +57,7 @@ type FileSystem interface {
 // IOUnitFS is implemented by FileSystems that want to report an
 // IOUnit value to clients when open and create requests are made. An
 // IOUnit value lets the client know the maximum amount of data during
-// reads and writes that is guarunteed to be an atomic operation.
+// reads and writes that is guaranteed to be an atomic operation.
 type IOUnitFS interface {
 	IOUnit() uint32
 }
@@ -81,7 +80,7 @@ type File interface {
 	io.Closer
 
 	// Stat returns the file's corresponding DirEntry.
-	Stat() DirEntry
+	Stat() (DirEntry, error)
 
 	// Readdir is called when an attempt is made to read a directory. It
 	// should return a list of entries in the directory or an error. If
@@ -90,8 +89,8 @@ type File interface {
 	Readdir() ([]DirEntry, error)
 }
 
-// DirEntry is a smaller version of Stat that eliminates unecessary or
-// duplicate fields.
+// DirEntry is a smaller version of Stat that eliminates unnecessary
+// or duplicate fields.
 //
 // Note that the top 8-bits of the Mode field are overwritten during
 // transmission using the Type field.
@@ -138,7 +137,7 @@ type fsHandler struct {
 	dirs  sync.Map
 }
 
-// HandleFS returns a MessageHandler that provides a virtual
+// FSHandler returns a MessageHandler that provides a virtual
 // filesystem using the provided FileSystem implementation. msize is
 // the maximum size that messages from either the server or the client
 // are allowed to be.
@@ -146,13 +145,21 @@ type fsHandler struct {
 // BUG: Tflush requests are not currently handled at all by this
 // implementation due to no clear method of stopping a pending call to
 // ReadAt() or WriteAt().
-func HandleFS(fs FileSystem, msize uint32) MessageHandler {
+func FSHandler(fs FileSystem, msize uint32) MessageHandler {
 	return &fsHandler{
 		fs:    fs,
 		msize: msize,
 
 		qids: make(map[string]QID),
 	}
+}
+
+// FSConnHandler returns a ConnHandler that calls FSHandler() to
+// generate MessageHandlers.
+func FSConnHandler(fs FileSystem, msize uint32) ConnHandler {
+	return ConnHandlerFunc(func() MessageHandler {
+		return FSHandler(fs, msize)
+	})
 }
 
 func (h *fsHandler) setPath(fid uint32, p string) {
@@ -246,9 +253,9 @@ func (h *fsHandler) largeCount(count uint32) bool {
 }
 
 func (h *fsHandler) version(msg *Tversion) Message {
-	if msg.Version != "9P2000" {
+	if msg.Version != Version {
 		return &Rerror{
-			Ename: "Unsupported version",
+			Ename: ErrUnsupportedVersion.Error(),
 		}
 	}
 
@@ -258,7 +265,7 @@ func (h *fsHandler) version(msg *Tversion) Message {
 
 	return &Rversion{
 		Msize:   h.msize,
-		Version: "9P2000",
+		Version: Version,
 	}
 }
 
@@ -297,14 +304,14 @@ func (h *fsHandler) auth(msg *Tauth) Message {
 
 func (h *fsHandler) flush(msg *Tflush) Message {
 	// TODO: Implement this.
-
-	fmt.Fprintln(os.Stderr, "Warning: Flush support is not implemented.")
 	return &Rerror{
-		Ename: "Tflush is not supported",
+		Ename: "flush is not supported",
 	}
 }
 
 func (h *fsHandler) attach(msg *Tattach) Message {
+	// TODO: Handle msg.AFID.
+
 	name := path.Clean(msg.Aname)
 	if name == "." {
 		name = "/"
@@ -420,6 +427,7 @@ func (h *fsHandler) create(msg *Tcreate) Message {
 			Ename: err.Error(),
 		}
 	}
+	h.setPath(msg.FID, p)
 
 	qid, err := h.getQID(p)
 	if err != nil {
@@ -457,8 +465,15 @@ func (h *fsHandler) read(msg *Tread) Message {
 	var n int
 	buf := make([]byte, msg.Count)
 
+	stat, err := file.Stat()
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
 	switch {
-	case file.Stat().Type&QTDir != 0:
+	case stat.Type&QTDir != 0:
 		var r io.Reader
 		switch msg.Offset {
 		case 0:
@@ -495,7 +510,7 @@ func (h *fsHandler) read(msg *Tread) Message {
 
 	default:
 		tmp, err := file.ReadAt(buf, int64(msg.Offset))
-		if (err != nil) && (err != io.EOF) {
+		if (err != nil) && !isEOF(err) {
 			return &Rerror{
 				Ename: err.Error(),
 			}
@@ -531,18 +546,12 @@ func (h *fsHandler) write(msg *Twrite) Message {
 func (h *fsHandler) clunk(msg *Tclunk) Message {
 	rsp := Message(new(Rclunk))
 
-	file, ok := h.getFile(msg.FID)
-	switch ok {
-	case true:
+	if file, ok := h.getFile(msg.FID); ok {
 		err := file.Close()
 		if err != nil {
 			rsp = &Rerror{
 				Ename: err.Error(),
 			}
-		}
-	case false:
-		rsp = &Rerror{
-			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
 		}
 	}
 

@@ -1,6 +1,40 @@
 package p9
 
-import "time"
+import (
+	"math"
+	"time"
+)
+
+const (
+	// Version is the 9P version implemented by this package, both for
+	// server and client.
+	Version = "9P2000"
+)
+
+const (
+	// NoTag is a special tag that is used when the tag is unimportant.
+	NoTag uint16 = math.MaxUint16
+
+	// NoFID is a special FID that is used to signal a lack of an FID.
+	NoFID uint32 = math.MaxUint32
+)
+
+// File open modes and flags.
+const (
+	OREAD uint8 = iota
+	OWRITE
+	ORDWR
+	OEXEC
+
+	OTRUNC  uint8 = 0x10
+	ORCLOSE uint8 = 0x40
+
+	// OWALK is a special flag that is not part of the 9P specification.
+	// For more information, see Remote.Open().
+	OWALK uint8 = 0xFF
+
+	DMDIR uint32 = 0x80000000
+)
 
 // QID represents a QID value.
 type QID struct {
@@ -57,6 +91,20 @@ type Stat struct {
 	UID    string
 	GID    string
 	MUID   string
+}
+
+func (s Stat) dirEntry() DirEntry {
+	return DirEntry{
+		Type:   s.QID.Type,
+		Mode:   s.Mode,
+		ATime:  s.ATime,
+		MTime:  s.MTime,
+		Length: s.Length,
+		Name:   s.Name,
+		UID:    s.UID,
+		GID:    s.GID,
+		MUID:   s.MUID,
+	}
 }
 
 func (s Stat) size() uint16 {

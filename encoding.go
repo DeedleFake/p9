@@ -119,7 +119,7 @@ func (e *encoder) Encode(v interface{}) {
 	}
 }
 
-// A decoder decodes the various types necessary for the protocal. It
+// A decoder decodes the various types necessary for the protocol. It
 // only handles those types. Attempting to use a value of another type
 // with it will cause a panic.
 type decoder struct {
