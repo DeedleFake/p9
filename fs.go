@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"path"
 	"sync"
 	"time"
@@ -297,10 +296,8 @@ func (h *fsHandler) auth(msg *Tauth) Message {
 
 func (h *fsHandler) flush(msg *Tflush) Message {
 	// TODO: Implement this.
-
-	fmt.Fprintln(os.Stderr, "Warning: Flush support is not implemented.")
 	return &Rerror{
-		Ename: "Tflush is not supported",
+		Ename: "flush is not supported",
 	}
 }
 
