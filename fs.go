@@ -253,7 +253,7 @@ func (h *fsHandler) largeCount(count uint32) bool {
 }
 
 func (h *fsHandler) version(msg *Tversion) Message {
-	if msg.Version != "9P2000" {
+	if msg.Version != Version {
 		return &Rerror{
 			Ename: ErrUnsupportedVersion.Error(),
 		}
@@ -265,7 +265,7 @@ func (h *fsHandler) version(msg *Tversion) Message {
 
 	return &Rversion{
 		Msize:   h.msize,
-		Version: "9P2000",
+		Version: Version,
 	}
 }
 

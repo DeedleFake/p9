@@ -21,14 +21,14 @@ var (
 func (c *Client) Handshake(msize uint32) (uint32, error) {
 	rsp, err := c.Send(&Tversion{
 		Msize:   msize,
-		Version: "9P2000",
+		Version: Version,
 	})
 	if err != nil {
 		return 0, err
 	}
 
 	version := rsp.(*Rversion)
-	if version.Version != "9P2000" {
+	if version.Version != Version {
 		return 0, ErrUnsupportedVersion
 	}
 

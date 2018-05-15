@@ -1,6 +1,14 @@
 package p9
 
-import "time"
+import (
+	"time"
+)
+
+const (
+	// Version is the 9P version implemented by this package, both for
+	// server and client.
+	Version = "9P2000"
+)
 
 // QID represents a QID value.
 type QID struct {
