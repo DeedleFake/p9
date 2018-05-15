@@ -117,15 +117,15 @@ func (file *File) WriteAt(buf []byte, off int64) (int, error) {
 	return len(buf), nil
 }
 
-func (file File) Close() error {
+func (file *File) Close() error {
 	return nil
 }
 
-func (file File) Stat() (p9.DirEntry, error) {
+func (file *File) Stat() (p9.DirEntry, error) {
 	return file.stat, nil
 }
 
-func (file File) Readdir() ([]p9.DirEntry, error) {
+func (file *File) Readdir() ([]p9.DirEntry, error) {
 	return nil, errors.New("Not a directory")
 }
 

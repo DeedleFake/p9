@@ -57,7 +57,7 @@ type FileSystem interface {
 // IOUnitFS is implemented by FileSystems that want to report an
 // IOUnit value to clients when open and create requests are made. An
 // IOUnit value lets the client know the maximum amount of data during
-// reads and writes that is guarunteed to be an atomic operation.
+// reads and writes that is guaranteed to be an atomic operation.
 type IOUnitFS interface {
 	IOUnit() uint32
 }
@@ -89,8 +89,8 @@ type File interface {
 	Readdir() ([]DirEntry, error)
 }
 
-// DirEntry is a smaller version of Stat that eliminates unecessary or
-// duplicate fields.
+// DirEntry is a smaller version of Stat that eliminates unnecessary
+// or duplicate fields.
 //
 // Note that the top 8-bits of the Mode field are overwritten during
 // transmission using the Type field.
