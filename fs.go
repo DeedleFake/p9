@@ -546,18 +546,12 @@ func (h *fsHandler) write(msg *Twrite) Message {
 func (h *fsHandler) clunk(msg *Tclunk) Message {
 	rsp := Message(new(Rclunk))
 
-	file, ok := h.getFile(msg.FID)
-	switch ok {
-	case true:
+	if file, ok := h.getFile(msg.FID); ok {
 		err := file.Close()
 		if err != nil {
 			rsp = &Rerror{
 				Ename: err.Error(),
 			}
-		}
-	case false:
-		rsp = &Rerror{
-			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
 		}
 	}
 
