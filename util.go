@@ -36,3 +36,13 @@ func (lr *LimitedReader) Read(buf []byte) (int, error) {
 	lr.N -= uint32(n)
 	return n, err
 }
+
+func isEOF(err error) bool {
+	switch err := err.(type) {
+	case *Rerror:
+		return err.Ename == "EOF"
+
+	default:
+		return err == io.EOF
+	}
+}

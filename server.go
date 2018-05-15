@@ -39,6 +39,18 @@ func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 	}
 }
 
+// ListenAndServe is a convenience function that establishes listener,
+// via net.Listen(), and then calls Serve().
+func ListenAndServe(network, addr string, connHandler ConnHandler) error {
+	lis, err := net.Listen(network, addr)
+	if err != nil {
+		return err
+	}
+	defer lis.Close()
+
+	return Serve(lis, connHandler)
+}
+
 func handleMessages(c net.Conn, handler MessageHandler) {
 	var msize uint32
 	mode := func(f func()) {
