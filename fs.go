@@ -6,17 +6,33 @@ import (
 	"io"
 	"path"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
 // FileSystem is an interface that allows high-level implementations
 // of 9P servers by allowing the implementation to ignore the majority
 // of the details of the protocol.
-//
-// With one exception, all paths passed to the methods of this system
-// are absolute paths, use forward slashes as separators, and have
-// been cleaned using path.Clean(). For the exception, see Auth().
 type FileSystem interface {
+	// Auth returns an authentication file. This file can be used to
+	// send authentication information back and forth between the server
+	// and the client.
+	//
+	// The file returned from this method must report its own type as
+	// QTAuth.
+	Auth(user, aname string) (File, error)
+
+	// Attach attachs to a file hierarchy provided by the filesystem.
+	// If the client is attempting to authenticate, a File previously
+	// returned from Auth() will be passed as afile.
+	Attach(afile File, user, aname string) (Attachment, error)
+}
+
+//
+// All paths passed to the methods of this system are absolute paths,
+// use forward slashes as separators, and have been cleaned using
+// path.Clean().
+type Attachment interface {
 	// Stat returns a DirEntry giving info about the file or directory
 	// at the given path. If an error is returned, the text of the error
 	// will be transmitted to the client.
@@ -31,16 +47,6 @@ type FileSystem interface {
 	// If an error is returned, it will be transmitted to the client.
 	WriteStat(path string, changes map[string]interface{}) error
 
-	// Auth returns an authentication file. This file can be used to
-	// send authentication information back and forth between the server
-	// and the client.
-	//
-	// Because of the way that FileSystem hides protocol details, such
-	// as FIDs, further calls assume that the Auth command created a
-	// file with the same name as the user. References to this file are
-	// the only references to a file that are not an absolute path.
-	Auth(user, aname string) (File, error)
-
 	// Open opens the file at path in the given mode. If an error is
 	// returned, it will be transmitted to the client.
 	Open(path string, mode uint8) (File, error)
@@ -54,7 +60,7 @@ type FileSystem interface {
 	Remove(path string) error
 }
 
-// IOUnitFS is implemented by FileSystems that want to report an
+// IOUnitFS is implemented by Attachments that want to report an
 // IOUnit value to clients when open and create requests are made. An
 // IOUnit value lets the client know the maximum amount of data during
 // reads and writes that is guaranteed to be an atomic operation.
@@ -174,7 +180,12 @@ func (h *fsHandler) getPath(fid uint32) (string, bool) {
 	return v.(string), true
 }
 
-func (h *fsHandler) getQID(p string) (QID, error) {
+func (h *fsHandler) getNextPath() uint64 {
+	next := atomic.AddUint64(&h.nextPath, 1)
+	return next - 1
+}
+
+func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 	h.qidM.Lock()
 	defer h.qidM.Unlock()
 
@@ -185,7 +196,7 @@ func (h *fsHandler) getQID(p string) (QID, error) {
 
 	qt := QTAuth
 	if path.IsAbs(p) {
-		stat, err := h.fs.Stat(p)
+		stat, err := attach.Stat(p)
 		if !ok {
 			return n, err
 		}
@@ -194,10 +205,8 @@ func (h *fsHandler) getQID(p string) (QID, error) {
 
 	n = QID{
 		Type: qt,
-		Path: h.nextPath,
+		Path: h.getNextPath(),
 	}
-
-	h.nextPath++
 	h.qids[p] = n
 
 	return n, nil
@@ -270,12 +279,7 @@ func (h *fsHandler) version(msg *Tversion) Message {
 }
 
 func (h *fsHandler) auth(msg *Tauth) Message {
-	aname := path.Clean(msg.Aname)
-	if aname == "." {
-		aname = "/"
-	}
-
-	file, err := h.fs.Auth(msg.Uname, aname)
+	file, err := h.fs.Auth(msg.Uname, msg.Aname)
 	if err != nil {
 		return &Rerror{
 			Ename: err.Error(),
@@ -288,17 +292,13 @@ func (h *fsHandler) auth(msg *Tauth) Message {
 		}
 	}
 
-	qid, err := h.getQID(msg.Uname)
-	if err != nil {
-		return &Rerror{
-			Ename: err.Error(),
-		}
-	}
-
 	h.setFile(msg.AFID, file)
 
 	return &Rauth{
-		AQID: qid,
+		AQID: QID{
+			Type: QTAuth,
+			Path: h.getNextPath(),
+		},
 	}
 }
 
@@ -310,21 +310,34 @@ func (h *fsHandler) flush(msg *Tflush) Message {
 }
 
 func (h *fsHandler) attach(msg *Tattach) Message {
-	// TODO: Handle msg.AFID.
-
-	name := path.Clean(msg.Aname)
-	if name == "." {
-		name = "/"
+	var afile File
+	if msg.AFID != NoFID {
+		tmp, ok := h.getFile(msg.AFID)
+		if !ok {
+			return &Rerror{
+				Ename: "no such AFID",
+			}
+		}
+		afile = tmp
 	}
 
-	qid, err := h.getQID(name)
+	attach, err := h.fs.Attach(afile, msg.Uname, msg.Aname)
 	if err != nil {
 		return &Rerror{
 			Ename: err.Error(),
 		}
 	}
 
-	h.setPath(msg.FID, name)
+	qid, err := h.getQID(msg.Aname, attach)
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
+		}
+	}
+
+	h.setAttachment(msg.FID, attach)
+	h.setPath(msg.FID, msg.Aname)
+
 	return &Rattach{
 		QID: qid,
 	}
