@@ -30,18 +30,7 @@ func (d Dir) Auth(user, aname string) (File, error) {
 }
 
 func (d Dir) Open(p string, mode uint8) (File, error) {
-	var flag int
-	switch mode {
-	case OREAD:
-		flag = os.O_RDONLY
-	case OWRITE:
-		flag = os.O_WRONLY
-	case ORDWR:
-		flag = os.O_RDWR
-	}
-	if mode&OTRUNC != 0 {
-		flag |= os.O_TRUNC
-	}
+	flag := toOSFlags(mode)
 
 	file, err := os.OpenFile(d.path(p), flag, 0644)
 	return &dirFile{
@@ -50,7 +39,16 @@ func (d Dir) Open(p string, mode uint8) (File, error) {
 }
 
 func (d Dir) Create(p string, perm uint32, mode uint8) (File, error) {
-	panic("Not implemented.")
+	if perm&DMDIR != 0 {
+		panic("Not implemented.")
+	}
+
+	flag := toOSFlags(mode)
+
+	file, err := os.OpenFile(d.path(p), flag, os.FileMode(perm).Perm())
+	return &dirFile{
+		File: file,
+	}, err
 }
 
 func (d Dir) Remove(p string) error {

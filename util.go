@@ -62,3 +62,20 @@ func infoToEntry(fi os.FileInfo) DirEntry {
 		Length: uint64(fi.Size()),
 	}
 }
+
+func toOSFlags(mode uint8) (flag int) {
+	switch mode {
+	case OREAD:
+		flag = os.O_RDONLY
+	case OWRITE:
+		flag = os.O_WRONLY
+	case ORDWR:
+		flag = os.O_RDWR
+	}
+
+	if mode&OTRUNC != 0 {
+		flag |= os.O_TRUNC
+	}
+
+	return flag
+}
