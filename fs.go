@@ -137,7 +137,7 @@ type fsHandler struct {
 	dirs  sync.Map
 }
 
-// HandleFS returns a MessageHandler that provides a virtual
+// FSHandler returns a MessageHandler that provides a virtual
 // filesystem using the provided FileSystem implementation. msize is
 // the maximum size that messages from either the server or the client
 // are allowed to be.
@@ -145,13 +145,21 @@ type fsHandler struct {
 // BUG: Tflush requests are not currently handled at all by this
 // implementation due to no clear method of stopping a pending call to
 // ReadAt() or WriteAt().
-func HandleFS(fs FileSystem, msize uint32) MessageHandler {
+func FSHandler(fs FileSystem, msize uint32) MessageHandler {
 	return &fsHandler{
 		fs:    fs,
 		msize: msize,
 
 		qids: make(map[string]QID),
 	}
+}
+
+// FSConnHandler returns a ConnHandler that calls FSHandler() to
+// generate MessageHandlers.
+func FSConnHandler(fs FileSystem, msize uint32) ConnHandler {
+	return ConnHandlerFunc(func() MessageHandler {
+		return FSHandler(fs, msize)
+	})
 }
 
 func (h *fsHandler) setPath(fid uint32, p string) {

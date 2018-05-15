@@ -4,7 +4,6 @@ import (
 	"errors"
 	"io"
 	"log"
-	"net"
 	"os"
 	"path"
 	"sort"
@@ -186,18 +185,8 @@ var (
 	}
 )
 
-func connHandler() p9.MessageHandler {
-	return p9.HandleFS(fs, 2048)
-}
-
 func main() {
-	lis, err := net.Listen("tcp", "localhost:5640")
-	if err != nil {
-		log.Fatalf("Failed to start listener: %v", err)
-	}
-	defer lis.Close()
-
-	err = p9.Serve(lis, p9.ConnHandlerFunc(connHandler))
+	err := p9.ListenAndServe("tcp", "localhost:5640", p9.FSConnHandler(fs, 2048))
 	if err != nil {
 		log.Fatalf("Failed to start server: %v", err)
 	}
