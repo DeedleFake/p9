@@ -78,7 +78,7 @@ func (c *Client) Auth(user, aname string) (*Remote, error) {
 func (c *Client) Attach(afile *Remote, user, aname string) (*Remote, error) {
 	fid := <-c.nextFID
 
-	var afid uint32
+	afid := NoFID
 	if afile != nil {
 		afid = afile.fid
 	}

@@ -310,6 +310,8 @@ func (h *fsHandler) flush(msg *Tflush) Message {
 }
 
 func (h *fsHandler) attach(msg *Tattach) Message {
+	// TODO: Handle msg.AFID.
+
 	name := path.Clean(msg.Aname)
 	if name == "." {
 		name = "/"
