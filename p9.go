@@ -1,6 +1,7 @@
 package p9
 
 import (
+	"math"
 	"time"
 )
 
@@ -8,6 +9,31 @@ const (
 	// Version is the 9P version implemented by this package, both for
 	// server and client.
 	Version = "9P2000"
+)
+
+const (
+	// NoTag is a special tag that is used when the tag is unimportant.
+	NoTag uint16 = math.MaxUint16
+
+	// NoFID is a special FID that is used to signal a lack of an FID.
+	NoFID uint32 = math.MaxUint32
+)
+
+// File open modes and flags.
+const (
+	OREAD uint8 = iota
+	OWRITE
+	ORDWR
+	OEXEC
+
+	OTRUNC  uint8 = 0x10
+	ORCLOSE uint8 = 0x40
+
+	// OWALK is a special flag that is not part of the 9P specification.
+	// For more information, see Remote.Open().
+	OWALK uint8 = 0xFF
+
+	DMDIR uint32 = 0x80000000
 )
 
 // QID represents a QID value.

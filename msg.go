@@ -3,7 +3,6 @@ package p9
 import (
 	"errors"
 	"io"
-	"math"
 )
 
 // Errors that are returned when messages lie about their own sizes.
@@ -130,14 +129,6 @@ type Message interface {
 	decodable
 }
 
-const (
-	// NoTag is a special tag that is used when the tag is unimportant.
-	NoTag uint16 = math.MaxUint16
-
-	// NoFID is a special FID that is used to signal a lack of an FID.
-	NoFID uint32 = math.MaxUint32
-)
-
 // MessageType is the 8-bit identifier of a message's type.
 type MessageType uint8
 
@@ -171,19 +162,6 @@ const (
 	RstatType
 	TwstatType
 	RwstatType
-)
-
-// File open modes and flags.
-const (
-	OREAD uint8 = iota
-	OWRITE
-	ORDWR
-	OEXEC
-
-	OTRUNC  uint8 = 0x10
-	ORCLOSE uint8 = 0x40
-
-	OWALK uint8 = 0xFF
 )
 
 func (t MessageType) encode(e *encoder) {
