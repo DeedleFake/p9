@@ -1,0 +1,160 @@
+package p9
+
+import (
+	"errors"
+	"os"
+	"path/filepath"
+	"time"
+)
+
+// Dir is an implementation of FileSystem that serves from the local
+// filesystem. It accepts attachments of either "" or "/", but rejects
+// all others.
+//
+// Note that Dir does not support authentication, simply returning an
+// error for any attempt to do so. If authentication is necessary,
+// wrap a Dir in an AuthFS instance.
+type Dir string
+
+func (d Dir) path(p string) string {
+	return filepath.Join(string(d), filepath.FromSlash(p))
+}
+
+func (d Dir) Stat(p string) (DirEntry, error) { // nolint
+	fi, err := os.Stat(d.path(p))
+	if err != nil {
+		return DirEntry{}, err
+	}
+
+	return infoToEntry(fi), nil
+}
+
+func (d Dir) WriteStat(p string, changes map[string]interface{}) error { // nolint
+	p = d.path(p)
+	base := filepath.Dir(p)
+
+	mode, ok := changes["Mode"]
+	if ok {
+		perm := os.FileMode(mode.(uint32)).Perm()
+		err := os.Chmod(p, perm)
+		if err != nil {
+			return err
+		}
+	}
+
+	atime, ok1 := changes["ATime"]
+	mtime, ok2 := changes["MTime"]
+	if ok1 || ok2 {
+		atime, _ := atime.(time.Time)
+		mtime, _ := mtime.(time.Time)
+		err := os.Chtimes(p, atime, mtime)
+		if err != nil {
+			return err
+		}
+	}
+
+	length, ok := changes["Length"]
+	if ok {
+		err := os.Truncate(p, int64(length.(uint64)))
+		if err != nil {
+			return err
+		}
+	}
+
+	name, ok := changes["Name"]
+	if ok {
+		err := os.Rename(p, filepath.Join(base, filepath.FromSlash(name.(string))))
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (d Dir) Auth(user, aname string) (File, error) { // nolint
+	return nil, errors.New("auth not supported")
+}
+
+func (d Dir) Attach(afile File, user, aname string) (Attachment, error) { // nolint
+	switch aname {
+	case "", "/":
+		return d, nil
+	}
+
+	return nil, errors.New("unknown attachment")
+}
+
+func (d Dir) Open(p string, mode uint8) (File, error) { // nolint
+	flag := toOSFlags(mode)
+
+	file, err := os.OpenFile(d.path(p), flag, 0644)
+	return &dirFile{
+		File: file,
+	}, err
+}
+
+func (d Dir) Create(p string, perm uint32, mode uint8) (File, error) { // nolint
+	if perm&DMDIR != 0 {
+		panic("Not implemented.")
+	}
+
+	flag := toOSFlags(mode)
+
+	file, err := os.OpenFile(d.path(p), flag, os.FileMode(perm).Perm())
+	return &dirFile{
+		File: file,
+	}, err
+}
+
+func (d Dir) Remove(p string) error { // nolint
+	return os.Remove(d.path(p))
+}
+
+type dirFile struct {
+	*os.File
+}
+
+func (f *dirFile) Readdir() ([]DirEntry, error) { // nolint
+	fi, err := f.File.Readdir(-1)
+	if err != nil {
+		return nil, err
+	}
+
+	entries := make([]DirEntry, 0, len(fi))
+	for _, info := range fi {
+		entries = append(entries, infoToEntry(info))
+	}
+	return entries, nil
+}
+
+// AuthFS allows simple wrapping and overwriting of the Auth() and
+// Attach() methods of an existing FileSystem implementation, allowing
+// the user to add authentication support to a FileSystem that does
+// not have it, or to change the implementation of that support for
+// FileSystems that do.
+type AuthFS struct {
+	FileSystem
+
+	// AuthFunc is the function called when the Auth() method is called.
+	AuthFunc func(user, aname string) (File, error)
+
+	// AttachFunc is the function called when the Attach() method is
+	// called. Note that this function, unlike the method, does not
+	// return an Attachment. Instead, if this function returns a nil
+	// error, the underlying implementation's Attach() method is called
+	// with the returned file as its afile argument.
+	AttachFunc func(afile File, user, aname string) (File, error)
+}
+
+func (a AuthFS) Auth(user, aname string) (File, error) { // nolint
+	return a.AuthFunc(user, aname)
+}
+
+func (a AuthFS) Attach(afile File, user, aname string) (Attachment, error) { // nolint
+	file, err := a.AttachFunc(afile, user, aname)
+	if err != nil {
+		return nil, err
+	}
+	return a.FileSystem.Attach(file, user, aname)
+}
