@@ -57,6 +57,10 @@ type Attachment interface {
 	// Create creates and opens a file at path with the given perms and
 	// mode. If an error is returned, it will be transmitted to the
 	// client.
+	//
+	// When creating a directory, this method will be called with the
+	// DMDIR bit set in perm. Even in this situation it should still
+	// open and return the newly created file.
 	Create(path string, perm uint32, mode uint8) (File, error)
 
 	// Remove deletes the file at path, returning any errors encountered.
