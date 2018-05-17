@@ -94,13 +94,19 @@ func (d Dir) Open(p string, mode uint8) (File, error) { // nolint
 }
 
 func (d Dir) Create(p string, perm uint32, mode uint8) (File, error) { // nolint
+	p = d.path(p)
+	osperm := os.FileMode(perm).Perm()
+
 	if perm&DMDIR != 0 {
-		panic("Not implemented.")
+		err := os.Mkdir(p, osperm)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	flag := toOSFlags(mode)
 
-	file, err := os.OpenFile(d.path(p), flag, os.FileMode(perm).Perm())
+	file, err := os.OpenFile(p, flag, osperm)
 	return &dirFile{
 		File: file,
 	}, err
