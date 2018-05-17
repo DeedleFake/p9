@@ -7,7 +7,6 @@ import (
 	"path"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // FileSystem is an interface that allows high-level implementations
@@ -43,13 +42,11 @@ type Attachment interface {
 	Stat(path string) (DirEntry, error)
 
 	// WriteStat applies changes to the metadata of the file at path.
-	// The changes argument contains a map containing key-value pairs
-	// that correspond to the fields of the DirEntry struct. Any fields
-	// that are in the struct but missing from the given map are fields
-	// that should not be changed.
+	// If a method of the changes argument returns false, it should not
+	// be changed.
 	//
 	// If an error is returned, it will be transmitted to the client.
-	WriteStat(path string, changes map[string]interface{}) error
+	WriteStat(path string, changes StatChanges) error
 
 	// Open opens the file at path in the given mode. If an error is
 	// returned, it will be transmitted to the client.
@@ -98,40 +95,6 @@ type File interface {
 	// a QTDir, then this method will be used to read it instead of
 	// ReadAt().
 	Readdir() ([]DirEntry, error)
-}
-
-// DirEntry is a smaller version of Stat that eliminates unnecessary
-// or duplicate fields.
-//
-// Note that the top 8-bits of the Mode field are overwritten during
-// transmission using the Type field.
-type DirEntry struct {
-	Type   QIDType
-	Mode   uint32
-	ATime  time.Time
-	MTime  time.Time
-	Length uint64
-	Name   string
-	UID    string
-	GID    string
-	MUID   string
-}
-
-func (d DirEntry) stat(path uint64) Stat {
-	return Stat{
-		QID: QID{
-			Type: d.Type,
-			Path: path,
-		},
-		Mode:   d.Mode | (uint32(d.Type) << 24),
-		ATime:  d.ATime,
-		MTime:  d.MTime,
-		Length: d.Length,
-		Name:   d.Name,
-		UID:    d.UID,
-		GID:    d.GID,
-		MUID:   d.MUID,
-	}
 }
 
 type fsFile struct {
@@ -662,38 +625,8 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 	file.RLock()
 	defer file.RUnlock()
 
-	changes := make(map[string]interface{})
-
-	if msg.Stat.Mode != 0xFFFFFFFF {
-		changes["Mode"] = msg.Stat.Mode
-	}
-
-	if msg.Stat.ATime.Unix() != -1 {
-		changes["ATime"] = msg.Stat.ATime
-	}
-
-	if msg.Stat.MTime.Unix() != -1 {
-		changes["MTime"] = msg.Stat.MTime
-	}
-
-	if msg.Stat.Length != 0xFFFFFFFFFFFFFFFF {
-		changes["Length"] = msg.Stat.Length
-	}
-
-	if msg.Stat.Name != "" {
-		changes["Name"] = msg.Stat.Name
-	}
-
-	if msg.Stat.UID != "" {
-		changes["UID"] = msg.Stat.UID
-	}
-
-	if msg.Stat.GID != "" {
-		changes["GID"] = msg.Stat.GID
-	}
-
-	if msg.Stat.MUID != "" {
-		changes["MUID"] = msg.Stat.MUID
+	changes := StatChanges{
+		DirEntry: msg.Stat.dirEntry(),
 	}
 
 	err := file.a.WriteStat(file.path, changes)

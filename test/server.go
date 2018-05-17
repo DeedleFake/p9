@@ -31,7 +31,7 @@ func (fs FS) Stat(p string) (p9.DirEntry, error) {
 	return f, nil
 }
 
-func (fs FS) WriteStat(p string, changes map[string]interface{}) error {
+func (fs FS) WriteStat(p string, changes p9.StatChanges) error {
 	return errors.New("wstat is not implemented")
 }
 

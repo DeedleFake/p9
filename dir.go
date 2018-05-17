@@ -4,7 +4,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 // Dir is an implementation of FileSystem that serves from the local
@@ -29,41 +28,41 @@ func (d Dir) Stat(p string) (DirEntry, error) { // nolint
 	return infoToEntry(fi), nil
 }
 
-func (d Dir) WriteStat(p string, changes map[string]interface{}) error { // nolint
+func (d Dir) WriteStat(p string, changes StatChanges) error { // nolint
+	// TODO: Add support for other values.
+
 	p = d.path(p)
 	base := filepath.Dir(p)
 
-	mode, ok := changes["Mode"]
+	mode, ok := changes.Mode()
 	if ok {
-		perm := os.FileMode(mode.(uint32)).Perm()
+		perm := os.FileMode(mode).Perm()
 		err := os.Chmod(p, perm)
 		if err != nil {
 			return err
 		}
 	}
 
-	atime, ok1 := changes["ATime"]
-	mtime, ok2 := changes["MTime"]
+	atime, ok1 := changes.ATime()
+	mtime, ok2 := changes.MTime()
 	if ok1 || ok2 {
-		atime, _ := atime.(time.Time)
-		mtime, _ := mtime.(time.Time)
 		err := os.Chtimes(p, atime, mtime)
 		if err != nil {
 			return err
 		}
 	}
 
-	length, ok := changes["Length"]
+	length, ok := changes.Length()
 	if ok {
-		err := os.Truncate(p, int64(length.(uint64)))
+		err := os.Truncate(p, int64(length))
 		if err != nil {
 			return err
 		}
 	}
 
-	name, ok := changes["Name"]
+	name, ok := changes.Name()
 	if ok {
-		err := os.Rename(p, filepath.Join(base, filepath.FromSlash(name.(string))))
+		err := os.Rename(p, filepath.Join(base, filepath.FromSlash(name)))
 		if err != nil {
 			return err
 		}
