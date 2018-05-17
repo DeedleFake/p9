@@ -28,10 +28,14 @@ type FileSystem interface {
 	Attach(afile File, user, aname string) (Attachment, error)
 }
 
+// Attachment is a file hierarchy provided by an FS.
 //
-// All paths passed to the methods of this system are absolute paths,
-// use forward slashes as separators, and have been cleaned using
-// path.Clean().
+// All paths passed to the methods of this system are relative to the
+// aname used to attach the attachment, use forward slashes as
+// separators, and have been cleaned using path.Clean(). For example,
+// if the client attaches using the aname "/example" and then tries to
+// open the file located at "some/other/example", the Open() method
+// will be called with the path "/example/some/other/example".
 type Attachment interface {
 	// Stat returns a DirEntry giving info about the file or directory
 	// at the given path. If an error is returned, the text of the error
@@ -85,13 +89,14 @@ type File interface {
 	// Used to handle 9P clunk requests.
 	io.Closer
 
-	// Stat returns the file's corresponding DirEntry.
-	Stat() (DirEntry, error)
-
 	// Readdir is called when an attempt is made to read a directory. It
 	// should return a list of entries in the directory or an error. If
 	// an error is returned, the error will be transmitted to the
 	// client.
+	//
+	// When a client attempts to read a file, if file reports itself as
+	// a QTDir, then this method will be used to read it instead of
+	// ReadAt().
 	Readdir() ([]DirEntry, error)
 }
 
@@ -129,18 +134,26 @@ func (d DirEntry) stat(path uint64) Stat {
 	}
 }
 
+type fsFile struct {
+	sync.RWMutex
+
+	path string
+
+	a Attachment
+
+	file File
+	dir  bytes.Buffer
+}
+
 type fsHandler struct {
 	fs    FileSystem
 	msize uint32
 
-	fids sync.Map
+	fids sync.Map // map[uint32]*fsFile
 
 	qidM     sync.Mutex
 	nextPath uint64
 	qids     map[string]QID
-
-	files sync.Map
-	dirs  sync.Map
 }
 
 // FSHandler returns a MessageHandler that provides a virtual
@@ -168,18 +181,6 @@ func FSConnHandler(fs FileSystem, msize uint32) ConnHandler {
 	})
 }
 
-func (h *fsHandler) setPath(fid uint32, p string) {
-	h.fids.Store(fid, p)
-}
-
-func (h *fsHandler) getPath(fid uint32) (string, bool) {
-	v, ok := h.fids.Load(fid)
-	if !ok {
-		return "", false
-	}
-	return v.(string), true
-}
-
 func (h *fsHandler) getNextPath() uint64 {
 	next := atomic.AddUint64(&h.nextPath, 1)
 	return next - 1
@@ -194,17 +195,13 @@ func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 		return n, nil
 	}
 
-	qt := QTAuth
-	if path.IsAbs(p) {
-		stat, err := attach.Stat(p)
-		if !ok {
-			return n, err
-		}
-		qt = stat.Type
+	stat, err := attach.Stat(p)
+	if err != nil {
+		return n, err
 	}
 
 	n = QID{
-		Type: qt,
+		Type: stat.Type,
 		Path: h.getNextPath(),
 	}
 	h.qids[p] = n
@@ -212,49 +209,17 @@ func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 	return n, nil
 }
 
-func (h *fsHandler) setFile(fid uint32, file File) {
-	h.files.Store(fid, file)
-}
+func (h *fsHandler) getFile(fid uint32, create bool) (*fsFile, bool) {
+	if create {
+		f, ok := h.fids.LoadOrStore(fid, new(fsFile))
+		return f.(*fsFile), ok
+	}
 
-func (h *fsHandler) getFile(fid uint32) (File, bool) {
-	v, ok := h.files.Load(fid)
+	f, ok := h.fids.Load(fid)
 	if !ok {
 		return nil, false
 	}
-	return v.(File), true
-}
-
-func (h *fsHandler) setDir(fid uint32, entries []DirEntry) (io.Reader, error) {
-	base, ok := h.getPath(fid)
-	if !ok {
-		return nil, fmt.Errorf("Unknown FID: %v", fid)
-	}
-
-	var buf bytes.Buffer
-	e := &encoder{
-		w: &buf,
-	}
-	e.mode = e.write
-
-	for _, entry := range entries {
-		qid, err := h.getQID(path.Join(base, entry.Name))
-		if err != nil {
-			return nil, err
-		}
-
-		e.Encode(entry.stat(qid.Path))
-	}
-
-	h.dirs.Store(fid, &buf)
-	return &buf, nil
-}
-
-func (h *fsHandler) getDir(fid uint32) (io.Reader, bool) {
-	v, ok := h.dirs.Load(fid)
-	if !ok {
-		return nil, false
-	}
-	return v.(io.Reader), true
+	return f.(*fsFile), true
 }
 
 func (h *fsHandler) largeCount(count uint32) bool {
@@ -286,13 +251,11 @@ func (h *fsHandler) auth(msg *Tauth) Message {
 		}
 	}
 
-	if path.IsAbs(msg.Uname) {
-		return &Rerror{
-			Ename: "Invalid uname",
-		}
-	}
+	f, _ := h.getFile(msg.AFID, true)
+	f.Lock()
+	defer f.Unlock()
 
-	h.setFile(msg.AFID, file)
+	f.file = file
 
 	return &Rauth{
 		AQID: QID{
@@ -312,13 +275,16 @@ func (h *fsHandler) flush(msg *Tflush) Message {
 func (h *fsHandler) attach(msg *Tattach) Message {
 	var afile File
 	if msg.AFID != NoFID {
-		tmp, ok := h.getFile(msg.AFID)
+		tmp, ok := h.getFile(msg.AFID, false)
 		if !ok {
 			return &Rerror{
 				Ename: "no such AFID",
 			}
 		}
-		afile = tmp
+
+		tmp.RLock()
+		afile = tmp.file
+		tmp.RUnlock()
 	}
 
 	attach, err := h.fs.Attach(afile, msg.Uname, msg.Aname)
@@ -335,8 +301,17 @@ func (h *fsHandler) attach(msg *Tattach) Message {
 		}
 	}
 
-	h.setAttachment(msg.FID, attach)
-	h.setPath(msg.FID, msg.Aname)
+	file, ok := h.getFile(msg.FID, true)
+	if ok {
+		return &Rerror{
+			Ename: "FID in use",
+		}
+	}
+	file.Lock()
+	defer file.Unlock()
+
+	file.path = msg.Aname
+	file.a = attach
 
 	return &Rattach{
 		QID: qid,
@@ -344,18 +319,23 @@ func (h *fsHandler) attach(msg *Tattach) Message {
 }
 
 func (h *fsHandler) walk(msg *Twalk) Message {
-	base, ok := h.getPath(msg.FID)
+	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
-			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+			Ename: "unknown FID",
 		}
 	}
+
+	file.RLock()
+	base := file.path
+	a := file.a
+	file.RUnlock()
 
 	qids := make([]QID, 0, len(msg.Wname))
 	for i, name := range msg.Wname {
 		next := path.Join(base, name)
 
-		qid, err := h.getQID(next)
+		qid, err := h.getQID(next, a)
 		if err != nil {
 			if i == 0 {
 				return &Rerror{
@@ -372,47 +352,59 @@ func (h *fsHandler) walk(msg *Twalk) Message {
 		base = next
 	}
 
-	h.setPath(msg.NewFID, base)
+	file, ok = h.getFile(msg.NewFID, true)
+	if ok {
+		return &Rerror{
+			Ename: "FID in use",
+		}
+	}
+	file.Lock()
+	defer file.Unlock()
+
+	file.path = base
+	file.a = a
+
 	return &Rwalk{
 		WQID: qids,
 	}
 }
 
 func (h *fsHandler) open(msg *Topen) Message {
-	if _, ok := h.getFile(msg.FID); ok {
+	file, ok := h.getFile(msg.FID, false)
+	if !ok {
+		return &Rerror{
+			Ename: "unknown FID",
+		}
+	}
+	file.Lock()
+	defer file.Unlock()
+
+	if file.file != nil {
 		return &Rerror{
 			Ename: "file already open",
 		}
 	}
 
-	p, ok := h.getPath(msg.FID)
-	if !ok {
+	f, err := file.a.Open(file.path, msg.Mode)
+	if err != nil {
 		return &Rerror{
-			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+			Ename: err.Error(),
 		}
 	}
+	file.file = f
 
-	file, err := h.fs.Open(p, msg.Mode)
+	qid, err := h.getQID(file.path, file.a)
 	if err != nil {
 		return &Rerror{
 			Ename: err.Error(),
 		}
 	}
 
-	qid, err := h.getQID(p)
-	if err != nil {
-		// If everything else works, this should never happen.
-		return &Rerror{
-			Ename: fmt.Sprintf("File opened but QID not found: %v", err),
-		}
-	}
-
 	var iounit uint32
-	if unit, ok := h.fs.(IOUnitFS); ok {
+	if unit, ok := file.a.(IOUnitFS); ok {
 		iounit = unit.IOUnit()
 	}
 
-	h.setFile(msg.FID, file)
 	return &Ropen{
 		QID:    qid,
 		IOUnit: iounit,
@@ -420,41 +412,45 @@ func (h *fsHandler) open(msg *Topen) Message {
 }
 
 func (h *fsHandler) create(msg *Tcreate) Message {
-	if _, ok := h.getFile(msg.FID); ok {
+	file, ok := h.getFile(msg.FID, false)
+	if !ok {
+		return &Rerror{
+			Ename: "unknown FID",
+		}
+	}
+	file.Lock()
+	defer file.Unlock()
+
+	if file.file != nil {
 		return &Rerror{
 			Ename: "file already open",
 		}
 	}
 
-	base, ok := h.getPath(msg.FID)
-	if !ok {
-		return &Rerror{
-			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
-		}
-	}
-	p := path.Join(base, msg.Name)
+	p := path.Join(file.path, msg.Name)
 
-	file, err := h.fs.Create(p, msg.Perm, msg.Mode)
+	f, err := file.a.Create(p, msg.Perm, msg.Mode)
 	if err != nil {
 		return &Rerror{
 			Ename: err.Error(),
 		}
 	}
-	h.setPath(msg.FID, p)
 
-	qid, err := h.getQID(p)
+	file.path = p
+	file.file = f
+
+	qid, err := h.getQID(p, file.a)
 	if err != nil {
 		return &Rerror{
-			Ename: fmt.Sprintf("File created but QID not found: %v", err),
+			Ename: err.Error(),
 		}
 	}
 
 	var iounit uint32
-	if unit, ok := h.fs.(IOUnitFS); ok {
+	if unit, ok := file.a.(IOUnitFS); ok {
 		iounit = unit.IOUnit()
 	}
 
-	h.setFile(msg.FID, file)
 	return &Rcreate{
 		QID:    qid,
 		IOUnit: iounit,
@@ -462,10 +458,25 @@ func (h *fsHandler) create(msg *Tcreate) Message {
 }
 
 func (h *fsHandler) read(msg *Tread) Message {
-	file, ok := h.getFile(msg.FID)
+	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
+			Ename: "unknown FID",
+		}
+	}
+	file.Lock()
+	defer file.Unlock()
+
+	if file.file == nil {
+		return &Rerror{
 			Ename: "file not open",
+		}
+	}
+
+	qid, err := h.getQID(file.path, file.a)
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
 		}
 	}
 
@@ -478,43 +489,34 @@ func (h *fsHandler) read(msg *Tread) Message {
 	var n int
 	buf := make([]byte, msg.Count)
 
-	stat, err := file.Stat()
-	if err != nil {
-		return &Rerror{
-			Ename: err.Error(),
-		}
-	}
-
 	switch {
-	case stat.Type&QTDir != 0:
-		var r io.Reader
-		switch msg.Offset {
-		case 0:
-			dir, err := file.Readdir()
+	case qid.Type&QTDir != 0:
+		if msg.Offset == 0 {
+			dir, err := file.file.Readdir()
 			if err != nil {
 				return &Rerror{
 					Ename: err.Error(),
 				}
 			}
 
-			r, err = h.setDir(msg.FID, dir)
-			if err != nil {
-				return &Rerror{
-					Ename: err.Error(),
-				}
-			}
+			file.dir.Reset()
 
-		default:
-			r, ok = h.getDir(msg.FID)
-			if !ok {
-				return &Rerror{
-					Ename: "Dir read with invalid offset",
+			e := &encoder{w: &file.dir}
+			e.mode = e.write
+			for _, entry := range dir {
+				qid, err := h.getQID(path.Join(file.path, entry.Name), file.a)
+				if err != nil {
+					return &Rerror{
+						Ename: err.Error(),
+					}
 				}
+
+				e.Encode(entry.stat(qid.Path))
 			}
 		}
 
-		tmp, err := r.Read(buf)
-		if err != nil {
+		tmp, err := file.dir.Read(buf)
+		if (err != nil) && (err != io.EOF) {
 			return &Rerror{
 				Ename: err.Error(),
 			}
@@ -522,8 +524,8 @@ func (h *fsHandler) read(msg *Tread) Message {
 		n = tmp
 
 	default:
-		tmp, err := file.ReadAt(buf, int64(msg.Offset))
-		if (err != nil) && !isEOF(err) {
+		tmp, err := file.file.ReadAt(buf, int64(msg.Offset))
+		if (err != nil) && (err != io.EOF) {
 			return &Rerror{
 				Ename: err.Error(),
 			}
@@ -537,14 +539,22 @@ func (h *fsHandler) read(msg *Tread) Message {
 }
 
 func (h *fsHandler) write(msg *Twrite) Message {
-	file, ok := h.getFile(msg.FID)
+	file, ok := h.getFile(msg.FID, false)
 	if !ok {
+		return &Rerror{
+			Ename: "unknown FID",
+		}
+	}
+	file.RLock()         // Somewhat ironic that this doesn't require a
+	defer file.RUnlock() // full lock like read() does.
+
+	if file.file == nil {
 		return &Rerror{
 			Ename: "file not open",
 		}
 	}
 
-	n, err := file.WriteAt(msg.Data, int64(msg.Offset))
+	n, err := file.file.WriteAt(msg.Data, int64(msg.Offset))
 	if err != nil {
 		return &Rerror{
 			Ename: err.Error(),
@@ -557,36 +567,53 @@ func (h *fsHandler) write(msg *Twrite) Message {
 }
 
 func (h *fsHandler) clunk(msg *Tclunk) Message {
-	rsp := Message(new(Rclunk))
+	defer h.fids.Delete(msg.FID)
 
-	if file, ok := h.getFile(msg.FID); ok {
-		err := file.Close()
-		if err != nil {
-			rsp = &Rerror{
-				Ename: err.Error(),
-			}
+	file, ok := h.getFile(msg.FID, false)
+	if !ok {
+		return &Rerror{
+			Ename: "unknown FID",
+		}
+	}
+	file.RLock()
+	defer file.RUnlock()
+
+	h.qidM.Lock()
+	defer h.qidM.Unlock()
+	delete(h.qids, file.path)
+
+	if file.file == nil {
+		return new(Rclunk)
+	}
+
+	err := file.file.Close()
+	if err != nil {
+		return &Rerror{
+			Ename: err.Error(),
 		}
 	}
 
-	h.fids.Delete(msg.FID)
-	h.files.Delete(msg.FID)
-	h.dirs.Delete(msg.FID)
-
-	return rsp
+	return new(Rclunk)
 }
 
 func (h *fsHandler) remove(msg *Tremove) Message {
-	p, ok := h.getPath(msg.FID)
+	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
-			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+			Ename: "unknown FID",
 		}
 	}
+	file.RLock()
+	defer file.RUnlock()
 
-	err := h.fs.Remove(p)
-	h.clunk(&Tclunk{
+	rsp := h.clunk(&Tclunk{
 		FID: msg.FID,
 	})
+	if _, ok := rsp.(*Rerror); ok {
+		return rsp
+	}
+
+	err := file.a.Remove(file.path)
 	if err != nil {
 		return &Rerror{
 			Ename: err.Error(),
@@ -597,21 +624,23 @@ func (h *fsHandler) remove(msg *Tremove) Message {
 }
 
 func (h *fsHandler) stat(msg *Tstat) Message {
-	p, ok := h.getPath(msg.FID)
+	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
-			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+			Ename: "unknown FID",
 		}
 	}
+	file.RLock()
+	defer file.RUnlock()
 
-	stat, err := h.fs.Stat(p)
+	stat, err := file.a.Stat(file.path)
 	if err != nil {
 		return &Rerror{
 			Ename: err.Error(),
 		}
 	}
 
-	qid, err := h.getQID(p)
+	qid, err := h.getQID(file.path, file.a)
 	if err != nil {
 		return &Rerror{
 			Ename: err.Error(),
@@ -624,12 +653,14 @@ func (h *fsHandler) stat(msg *Tstat) Message {
 }
 
 func (h *fsHandler) wstat(msg *Twstat) Message {
-	p, ok := h.getPath(msg.FID)
+	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
-			Ename: fmt.Sprintf("Unknown FID: %v", msg.FID),
+			Ename: "unknown FID",
 		}
 	}
+	file.RLock()
+	defer file.RUnlock()
 
 	changes := make(map[string]interface{})
 
@@ -665,7 +696,7 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 		changes["MUID"] = msg.Stat.MUID
 	}
 
-	err := h.fs.WriteStat(p, changes)
+	err := file.a.WriteStat(file.path, changes)
 	if err != nil {
 		return &Rerror{
 			Ename: err.Error(),
@@ -724,8 +755,11 @@ func (h *fsHandler) HandleMessage(msg Message) Message {
 }
 
 func (h *fsHandler) Close() error {
-	h.files.Range(func(k, v interface{}) bool {
-		v.(File).Close() // nolint
+	h.fids.Range(func(k, v interface{}) bool {
+		file := v.(*fsFile)
+		if file.file != nil {
+			file.file.Close() // nolint
+		}
 		return true
 	})
 
