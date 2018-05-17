@@ -38,16 +38,6 @@ func (lr *LimitedReader) Read(buf []byte) (int, error) {
 	return n, err
 }
 
-func isEOF(err error) bool {
-	switch err := err.(type) {
-	case *Rerror:
-		return err.Ename == "EOF"
-
-	default:
-		return err == io.EOF
-	}
-}
-
 func infoToEntry(fi os.FileInfo) DirEntry {
 	t := QTFile
 	if fi.IsDir() {
