@@ -7,7 +7,6 @@ import (
 	"path"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 // FileSystem is an interface that allows high-level implementations
@@ -43,13 +42,13 @@ type Attachment interface {
 	Stat(path string) (DirEntry, error)
 
 	// WriteStat applies changes to the metadata of the file at path.
-	// The changes argument contains a map containing key-value pairs
-	// that correspond to the fields of the DirEntry struct. Any fields
-	// that are in the struct but missing from the given map are fields
-	// that should not be changed.
+	// If a method of the changes argument returns false, it should not
+	// be changed.
 	//
-	// If an error is returned, it will be transmitted to the client.
-	WriteStat(path string, changes map[string]interface{}) error
+	// If an error is returned, it is assumed that the entire operation
+	// failed. In particular, name changes will not be tracked by the
+	// system if this returns an error.
+	WriteStat(path string, changes StatChanges) error
 
 	// Open opens the file at path in the given mode. If an error is
 	// returned, it will be transmitted to the client.
@@ -58,6 +57,10 @@ type Attachment interface {
 	// Create creates and opens a file at path with the given perms and
 	// mode. If an error is returned, it will be transmitted to the
 	// client.
+	//
+	// When creating a directory, this method will be called with the
+	// DMDIR bit set in perm. Even in this situation it should still
+	// open and return the newly created file.
 	Create(path string, perm uint32, mode uint8) (File, error)
 
 	// Remove deletes the file at path, returning any errors encountered.
@@ -98,40 +101,6 @@ type File interface {
 	// a QTDir, then this method will be used to read it instead of
 	// ReadAt().
 	Readdir() ([]DirEntry, error)
-}
-
-// DirEntry is a smaller version of Stat that eliminates unnecessary
-// or duplicate fields.
-//
-// Note that the top 8-bits of the Mode field are overwritten during
-// transmission using the Type field.
-type DirEntry struct {
-	Type   QIDType
-	Mode   uint32
-	ATime  time.Time
-	MTime  time.Time
-	Length uint64
-	Name   string
-	UID    string
-	GID    string
-	MUID   string
-}
-
-func (d DirEntry) stat(path uint64) Stat {
-	return Stat{
-		QID: QID{
-			Type: d.Type,
-			Path: path,
-		},
-		Mode:   d.Mode | (uint32(d.Type) << 24),
-		ATime:  d.ATime,
-		MTime:  d.MTime,
-		Length: d.Length,
-		Name:   d.Name,
-		UID:    d.UID,
-		GID:    d.GID,
-		MUID:   d.MUID,
-	}
 }
 
 type fsFile struct {
@@ -500,21 +469,27 @@ func (h *fsHandler) read(msg *Tread) Message {
 			}
 
 			file.dir.Reset()
-
-			e := &encoder{w: &file.dir}
-			e.mode = e.write
-			for _, entry := range dir {
-				qid, err := h.getQID(path.Join(file.path, entry.Name), file.a)
+			err = WriteDir(&file.dir, dir, func(name string) (uint64, error) {
+				qid, err := h.getQID(path.Join(file.path, name), file.a)
 				if err != nil {
-					return &Rerror{
-						Ename: err.Error(),
-					}
+					return 0, err
 				}
-
-				e.Encode(entry.stat(qid.Path))
+				return qid.Path, nil
+			})
+			if err != nil {
+				return &Rerror{
+					Ename: err.Error(),
+				}
 			}
 		}
 
+		// This technically isn't quite accurate to the 9P specification.
+		// The specification states that all reads of a directory must
+		// either be at offset 0 or at the previous offset plus the length
+		// of the previous read. Instead, this implemenation just ignores
+		// the offset if it's not zero. This is backwards compatible with
+		// the specification, however, so it's probably not really an
+		// issue.
 		tmp, err := file.dir.Read(buf)
 		if (err != nil) && (err != io.EOF) {
 			return &Rerror{
@@ -662,38 +637,8 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 	file.RLock()
 	defer file.RUnlock()
 
-	changes := make(map[string]interface{})
-
-	if msg.Stat.Mode != 0xFFFFFFFF {
-		changes["Mode"] = msg.Stat.Mode
-	}
-
-	if msg.Stat.ATime.Unix() != -1 {
-		changes["ATime"] = msg.Stat.ATime
-	}
-
-	if msg.Stat.MTime.Unix() != -1 {
-		changes["MTime"] = msg.Stat.MTime
-	}
-
-	if msg.Stat.Length != 0xFFFFFFFFFFFFFFFF {
-		changes["Length"] = msg.Stat.Length
-	}
-
-	if msg.Stat.Name != "" {
-		changes["Name"] = msg.Stat.Name
-	}
-
-	if msg.Stat.UID != "" {
-		changes["UID"] = msg.Stat.UID
-	}
-
-	if msg.Stat.GID != "" {
-		changes["GID"] = msg.Stat.GID
-	}
-
-	if msg.Stat.MUID != "" {
-		changes["MUID"] = msg.Stat.MUID
+	changes := StatChanges{
+		DirEntry: msg.Stat.dirEntry(),
 	}
 
 	err := file.a.WriteStat(file.path, changes)
@@ -701,6 +646,17 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 		return &Rerror{
 			Ename: err.Error(),
 		}
+	}
+
+	if name, ok := changes.Name(); ok {
+		h.qidM.Lock()
+		defer h.qidM.Unlock()
+
+		next := path.Join(path.Dir(file.path), name)
+		h.qids[next] = h.qids[file.path]
+		delete(h.qids, file.path)
+
+		file.path = next
 	}
 
 	return new(Rwstat)

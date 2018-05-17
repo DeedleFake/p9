@@ -417,21 +417,5 @@ func (file *Remote) Stat(p string) (DirEntry, error) {
 // Note that to read this list again, the file must first be seeked to
 // the beginning.
 func (file *Remote) Readdir() ([]DirEntry, error) {
-	d := &decoder{
-		r: file,
-	}
-
-	var entries []DirEntry
-	for {
-		var stat Stat
-		d.Decode(&stat)
-		if d.err != nil {
-			if isEOF(d.err) {
-				d.err = nil
-			}
-			return entries, d.err
-		}
-
-		entries = append(entries, stat.dirEntry())
-	}
+	return ReadDir(file)
 }
