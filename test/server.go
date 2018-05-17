@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -35,12 +36,15 @@ func (fs FS) WriteStat(p string, changes map[string]interface{}) error {
 }
 
 func (fs FS) Auth(user, aname string) (p9.File, error) {
-	return &File{
-		stat: p9.DirEntry{
-			Type: p9.QTAuth,
-			Name: aname,
-		},
-	}, nil
+	return nil, errors.New("auth not supported")
+}
+
+func (fs FS) Attach(afile p9.File, user, aname string) (p9.Attachment, error) {
+	if aname != "/" {
+		return nil, fmt.Errorf("Bad aname: %q", aname)
+	}
+
+	return fs, nil
 }
 
 func (fs FS) Open(p string, mode uint8) (p9.File, error) {

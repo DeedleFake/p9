@@ -21,7 +21,7 @@ func main() {
 	}
 	fmt.Printf("msize: %v\n", msize)
 
-	root, err := c.Attach(nil, "anyone", "")
+	root, err := c.Attach(nil, "anyone", "/")
 	if err != nil {
 		panic(err)
 	}
