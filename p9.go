@@ -29,10 +29,6 @@ const (
 	OTRUNC  uint8 = 0x10
 	ORCLOSE uint8 = 0x40
 
-	// OWALK is a special flag that is not part of the 9P specification.
-	// For more information, see Remote.Open().
-	OWALK uint8 = 0xFF
-
 	DMDIR uint32 = 0x80000000
 )
 

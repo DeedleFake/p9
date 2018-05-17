@@ -75,7 +75,7 @@ func main() {
 	}
 	defer dir.Close()
 
-	stat, err := dir.Stat()
+	stat, err := dir.Stat("")
 	if err != nil {
 		panic(err)
 	}
@@ -90,7 +90,7 @@ func main() {
 		fmt.Printf("\t%v\n", entry.Name)
 	}
 
-	err = create.Remove()
+	err = create.Remove("")
 	if err != nil {
 		panic(err)
 	}

@@ -145,20 +145,10 @@ func (file *Remote) walk(p string) (*Remote, error) {
 //
 //    root, _ := client.Attach(nil, "anyone", "/")
 //    file, _ := root.Open("some/file/or/another", p9.OREAD)
-//
-// As a special case, the mode may be OWALK, which will cause the file
-// to be navigated to but not actually opened for reading. This allows
-// the user to, for example, delete files without having to open them
-// first. In this case, if the file does not exist, it may not be an
-// error. Instead, the returned Remote's Type() will return 0xFF.
 func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 	next, err := file.walk(p)
 	if err != nil {
 		return nil, err
-	}
-
-	if mode == OWALK {
-		return next, nil
 	}
 
 	rsp, err := file.client.Send(&Topen{
@@ -200,13 +190,21 @@ func (file *Remote) Create(p string, perm uint32, mode uint8) (*Remote, error) {
 	return next, nil
 }
 
-// Remove deletes the current file. If the file is open, this also
-// closes it, so there's no need to call both this and Close().
-func (file *Remote) Remove() error {
-	_, err := file.client.Send(&Tremove{
-		FID: file.fid,
-	})
-	return err
+// Remove deletes the file at p, relative to the current file. If p is
+// "", it closes the current file, if open, and deletes it.
+func (file *Remote) Remove(p string) error {
+	if p == "" {
+		_, err := file.client.Send(&Tremove{
+			FID: file.fid,
+		})
+		return err
+	}
+
+	file, err := file.walk(p)
+	if err != nil {
+		return err
+	}
+	return file.Remove("")
 }
 
 // Seek seeks a file. As 9P requires clients to track their own
@@ -236,7 +234,7 @@ func (file *Remote) Seek(offset int64, whence int) (int64, error) {
 		return npos, nil
 
 	case io.SeekEnd:
-		stat, err := file.Stat()
+		stat, err := file.Stat("")
 		if err != nil {
 			return int64(file.pos), err
 		}
@@ -388,17 +386,27 @@ func (file *Remote) Close() error {
 	return err
 }
 
-// Stat returns the DirEntry representing the file.
-func (file *Remote) Stat() (DirEntry, error) {
-	rsp, err := file.client.Send(&Tstat{
-		FID: file.fid,
-	})
+// Stat fetches and returns the DirEntry for the file located at p,
+// relative to the current file. If p is "", it is considered to be
+// the current file.
+func (file *Remote) Stat(p string) (DirEntry, error) {
+	if p == "" {
+		rsp, err := file.client.Send(&Tstat{
+			FID: file.fid,
+		})
+		if err != nil {
+			return DirEntry{}, err
+		}
+		stat := rsp.(*Rstat)
+
+		return stat.Stat.dirEntry(), nil
+	}
+
+	file, err := file.walk(p)
 	if err != nil {
 		return DirEntry{}, err
 	}
-	stat := rsp.(*Rstat)
-
-	return stat.Stat.dirEntry(), nil
+	return file.Stat("")
 }
 
 // Readdir reads the file as a directory, returning the list of
