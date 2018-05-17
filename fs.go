@@ -45,7 +45,9 @@ type Attachment interface {
 	// If a method of the changes argument returns false, it should not
 	// be changed.
 	//
-	// If an error is returned, it will be transmitted to the client.
+	// If an error is returned, it is assumed that the entire operation
+	// failed. In particular, name changes will not be tracked by the
+	// system if this returns an error.
 	WriteStat(path string, changes StatChanges) error
 
 	// Open opens the file at path in the given mode. If an error is
@@ -640,6 +642,17 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 		return &Rerror{
 			Ename: err.Error(),
 		}
+	}
+
+	if name, ok := changes.Name(); ok {
+		h.qidM.Lock()
+		defer h.qidM.Unlock()
+
+		next := path.Join(path.Dir(file.path), name)
+		h.qids[next] = h.qids[file.path]
+		delete(h.qids, file.path)
+
+		file.path = next
 	}
 
 	return new(Rwstat)
