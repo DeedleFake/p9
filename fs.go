@@ -463,21 +463,27 @@ func (h *fsHandler) read(msg *Tread) Message {
 			}
 
 			file.dir.Reset()
-
-			e := &encoder{w: &file.dir}
-			e.mode = e.write
-			for _, entry := range dir {
-				qid, err := h.getQID(path.Join(file.path, entry.Name), file.a)
+			err = WriteDir(&file.dir, dir, func(name string) (uint64, error) {
+				qid, err := h.getQID(path.Join(file.path, name), file.a)
 				if err != nil {
-					return &Rerror{
-						Ename: err.Error(),
-					}
+					return 0, err
 				}
-
-				e.Encode(entry.stat(qid.Path))
+				return qid.Path, nil
+			})
+			if err != nil {
+				return &Rerror{
+					Ename: err.Error(),
+				}
 			}
 		}
 
+		// This technically isn't quite accurate to the 9P specification.
+		// The specification states that all reads of a directory must
+		// either be at offset 0 or at the previous offset plus the length
+		// of the previous read. Instead, this implemenation just ignores
+		// the offset if it's not zero. This is backwards compatible with
+		// the specification, however, so it's probably not really an
+		// issue.
 		tmp, err := file.dir.Read(buf)
 		if (err != nil) && (err != io.EOF) {
 			return &Rerror{

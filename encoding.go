@@ -220,3 +220,46 @@ func (d *decoder) Decode(v interface{}) {
 		panic(fmt.Errorf("Unexpected type: %T", v))
 	}
 }
+
+// ReadDir decodes a series of directory entries from a reader. It
+// reads until EOF, so it doesn't return io.EOF as a possible error.
+func ReadDir(r io.Reader) ([]DirEntry, error) {
+	d := &decoder{
+		r: r,
+	}
+
+	var entries []DirEntry
+	for {
+		var stat Stat
+		d.Decode(&stat)
+		if d.err != nil {
+			if d.err == io.EOF {
+				d.err = nil
+			}
+			return entries, d.err
+		}
+
+		entries = append(entries, stat.dirEntry())
+	}
+}
+
+// WriteDir writes a series of directory entries to w. It uses getPath
+// to lookup the QID path of each entry by name. If getPath returns an
+// error, that error is immediately returned.
+func WriteDir(w io.Writer, entries []DirEntry, getPath func(string) (uint64, error)) error {
+	e := &encoder{
+		w: w,
+	}
+	e.mode = e.write
+
+	for _, entry := range entries {
+		p, err := getPath(entry.Name)
+		if err != nil {
+			return err
+		}
+
+		e.Encode(entry.stat(p))
+	}
+
+	return e.err
+}
