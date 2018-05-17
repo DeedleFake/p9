@@ -69,6 +69,15 @@ func (d Dir) Auth(user, aname string) (File, error) {
 	return nil, errors.New("auth not supported")
 }
 
+func (d Dir) Attach(afile File, user, aname string) (Attachment, error) {
+	switch aname {
+	case "", "/":
+		return d, nil
+	}
+
+	return nil, errors.New("unknown attachment")
+}
+
 func (d Dir) Open(p string, mode uint8) (File, error) {
 	flag := toOSFlags(mode)
 
@@ -118,4 +127,14 @@ func (f *dirFile) Readdir() ([]DirEntry, error) {
 		entries = append(entries, infoToEntry(info))
 	}
 	return entries, nil
+}
+
+type AuthFS struct {
+	FileSystem
+
+	AuthFunc func(user, aname string) (File, error)
+}
+
+func (a AuthFS) Auth(user, aname string) (File, error) {
+	return a.AuthFunc(user, aname)
 }
