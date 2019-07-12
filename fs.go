@@ -152,7 +152,7 @@ func FSHandler(fs FileSystem, msize uint32) MessageHandler {
 // to stderr if the p9debug build tag is set.
 func FSConnHandler(fs FileSystem, msize uint32) ConnHandler {
 	return ConnHandlerFunc(func() MessageHandler {
-		debugLog("Got new connection to FSConnHandler.")
+		debugLog("Got new connection to FSConnHandler.\n")
 		return FSHandler(fs, msize)
 	})
 }
