@@ -669,7 +669,11 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 	return new(Rwstat)
 }
 
-func (h *fsHandler) HandleMessage(msg Message) Message {
+func (h *fsHandler) HandleMessage(msg Message) (r Message) {
+	defer func() {
+		debugLog("%#v\n", r)
+	}()
+
 	debugLog("%#v\n", msg)
 
 	switch msg := msg.(type) {

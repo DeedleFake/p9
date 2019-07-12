@@ -106,7 +106,7 @@ func (d Dir) Create(p string, perm uint32, mode uint8) (File, error) { // nolint
 
 	flag := toOSFlags(mode)
 
-	file, err := os.OpenFile(p, flag, osperm)
+	file, err := os.OpenFile(p, flag|os.O_CREATE, osperm)
 	return &dirFile{
 		File: file,
 	}, err
