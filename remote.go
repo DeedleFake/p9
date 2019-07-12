@@ -1,6 +1,7 @@
 package p9
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -417,5 +418,5 @@ func (file *Remote) Stat(p string) (DirEntry, error) {
 // Note that to read this list again, the file must first be seeked to
 // the beginning.
 func (file *Remote) Readdir() ([]DirEntry, error) {
-	return ReadDir(file)
+	return ReadDir(bufio.NewReaderSize(file, file.maxBufSize()))
 }

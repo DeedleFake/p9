@@ -223,6 +223,11 @@ func (d *decoder) Decode(v interface{}) {
 
 // ReadDir decodes a series of directory entries from a reader. It
 // reads until EOF, so it doesn't return io.EOF as a possible error.
+//
+// It is recommended that the reader passed to ReadDir have some form
+// of buffering, as some servers will silently mishandle attempts to
+// read pieces of a directory. Wrapping the reader with a bufio.Reader
+// is often sufficient.
 func ReadDir(r io.Reader) ([]DirEntry, error) {
 	d := &decoder{
 		r: r,
