@@ -130,6 +130,9 @@ type fsHandler struct {
 // the maximum size that messages from either the server or the client
 // are allowed to be.
 //
+// The returned MessageHandler implementation will print debug
+// messages to stderr if the p9debug build tag is set.
+//
 // BUG: Tflush requests are not currently handled at all by this
 // implementation due to no clear method of stopping a pending call to
 // ReadAt() or WriteAt().
@@ -144,8 +147,12 @@ func FSHandler(fs FileSystem, msize uint32) MessageHandler {
 
 // FSConnHandler returns a ConnHandler that calls FSHandler() to
 // generate MessageHandlers.
+//
+// The returned ConnHandler implementation will print debug messages
+// to stderr if the p9debug build tag is set.
 func FSConnHandler(fs FileSystem, msize uint32) ConnHandler {
 	return ConnHandlerFunc(func() MessageHandler {
+		debugLog("Got new connection to FSConnHandler.")
 		return FSHandler(fs, msize)
 	})
 }
@@ -663,6 +670,8 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 }
 
 func (h *fsHandler) HandleMessage(msg Message) Message {
+	debugLog("%#v\n", msg)
+
 	switch msg := msg.(type) {
 	case *Tversion:
 		return h.version(msg)
