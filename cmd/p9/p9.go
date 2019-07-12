@@ -6,12 +6,56 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/DeedleFake/p9"
 )
 
 type Command interface {
 	Name() string
 	Desc() string
-	Run(GlobalOptions, []string)
+	Run(GlobalOptions, []string) error
+}
+
+func NewRemoteCommand(name, desc string, run func(a *p9.Remote, args []string) error) Command {
+	return &remoteCommand{
+		name: name,
+		desc: desc,
+		run:  run,
+	}
+}
+
+type remoteCommand struct {
+	name, desc string
+	run        func(a *p9.Remote, args []string) error
+}
+
+func (cmd remoteCommand) Name() string {
+	return cmd.name
+}
+
+func (cmd remoteCommand) Desc() string {
+	return cmd.desc
+}
+
+func (cmd remoteCommand) Run(options GlobalOptions, args []string) error {
+	c, err := p9.Dial("tcp", options.Address)
+	if err != nil {
+		return fmt.Errorf("Failed to dial address: %v\n", err)
+	}
+	defer c.Close()
+
+	_, err = c.Handshake(uint32(options.MSize))
+	if err != nil {
+		return fmt.Errorf("Handshake failed: %v\n", err)
+	}
+
+	a, err := c.Attach(nil, options.UName, options.AName)
+	if err != nil {
+		return fmt.Errorf("Failed to attach: %v\n", err)
+	}
+	defer a.Close()
+
+	return cmd.run(a, args)
 }
 
 var commands = []Command{
@@ -42,7 +86,7 @@ func (helpCmd) Desc() string {
 	return "Displays this help message."
 }
 
-func (helpCmd) Run(options GlobalOptions, args []string) {
+func (helpCmd) Run(options GlobalOptions, args []string) error {
 	arg0 := filepath.Base(os.Args[0])
 
 	fmt.Fprintf(os.Stderr, "%v is a command-line tool for both accessing and serving 9P filesystems.\n", arg0)
@@ -56,6 +100,8 @@ func (helpCmd) Run(options GlobalOptions, args []string) {
 	for _, cmd := range commands {
 		fmt.Fprintf(os.Stderr, "\t%v\t\t%v\n", cmd.Name(), cmd.Desc())
 	}
+
+	return nil
 }
 
 type GlobalOptions struct {
@@ -90,5 +136,9 @@ func main() {
 		os.Exit(2)
 	}
 
-	c.Run(options, flag.Args())
+	err := c.Run(options, flag.Args())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
 }
