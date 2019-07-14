@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/DeedleFake/p9"
 )
@@ -13,6 +14,7 @@ func init() {
 		"List the files in a directory.",
 		func(a *p9.Remote, args []string) error {
 			fset := flag.NewFlagSet("ls", flag.ExitOnError)
+			showDetails := fset.Bool("l", false, "Show details.")
 			fset.Parse(args[1:])
 
 			d, err := a.Open(fset.Arg(0), p9.OREAD)
@@ -27,6 +29,9 @@ func init() {
 			}
 
 			for _, entry := range entries {
+				if *showDetails {
+					fmt.Printf("%v ", os.FileMode(entry.Mode))
+				}
 				fmt.Printf("%v\n", entry.Name)
 			}
 
