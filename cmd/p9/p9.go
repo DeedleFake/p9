@@ -16,48 +16,6 @@ type Command interface {
 	Run(GlobalOptions, []string) error
 }
 
-func NewRemoteCommand(name, desc string, run func(a *p9.Remote, args []string) error) Command {
-	return &remoteCommand{
-		name: name,
-		desc: desc,
-		run:  run,
-	}
-}
-
-type remoteCommand struct {
-	name, desc string
-	run        func(a *p9.Remote, args []string) error
-}
-
-func (cmd remoteCommand) Name() string {
-	return cmd.name
-}
-
-func (cmd remoteCommand) Desc() string {
-	return cmd.desc
-}
-
-func (cmd remoteCommand) Run(options GlobalOptions, args []string) error {
-	c, err := p9.Dial("tcp", options.Address)
-	if err != nil {
-		return fmt.Errorf("Failed to dial address: %v\n", err)
-	}
-	defer c.Close()
-
-	_, err = c.Handshake(uint32(options.MSize))
-	if err != nil {
-		return fmt.Errorf("Handshake failed: %v\n", err)
-	}
-
-	a, err := c.Attach(nil, options.UName, options.AName)
-	if err != nil {
-		return fmt.Errorf("Failed to attach: %v\n", err)
-	}
-	defer a.Close()
-
-	return cmd.run(a, args)
-}
-
 var commands = []Command{
 	&helpCmd{},
 }
@@ -102,6 +60,27 @@ func (helpCmd) Run(options GlobalOptions, args []string) error {
 	}
 
 	return nil
+}
+
+func attach(options GlobalOptions, f func(*p9.Remote) error) error {
+	c, err := p9.Dial("tcp", options.Address)
+	if err != nil {
+		return fmt.Errorf("Failed to dial address: %v\n", err)
+	}
+	defer c.Close()
+
+	_, err = c.Handshake(uint32(options.MSize))
+	if err != nil {
+		return fmt.Errorf("Handshake failed: %v\n", err)
+	}
+
+	a, err := c.Attach(nil, options.UName, options.AName)
+	if err != nil {
+		return fmt.Errorf("Failed to attach: %v\n", err)
+	}
+	defer a.Close()
+
+	return f(a)
 }
 
 type GlobalOptions struct {
