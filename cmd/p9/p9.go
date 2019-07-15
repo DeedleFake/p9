@@ -74,7 +74,7 @@ func (helpCmd) Run(options GlobalOptions, args []string) (err error) {
 }
 
 func attach(options GlobalOptions, f func(*p9.Remote) error) error {
-	c, err := p9.Dial("tcp", options.Address)
+	c, err := p9.Dial(options.Network, options.Address)
 	if err != nil {
 		return fmt.Errorf("Failed to dial address: %v", err)
 	}
@@ -95,6 +95,7 @@ func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 }
 
 type GlobalOptions struct {
+	Network string
 	Address string
 	MSize   uint
 	UName   string
@@ -103,6 +104,7 @@ type GlobalOptions struct {
 
 func main() {
 	var options GlobalOptions
+	flag.StringVar(&options.Network, "net", "", "The network protocol to use. Defaults to trying to guess from the address.")
 	flag.StringVar(&options.Address, "addr", "localhost:564", "When acting as a server, the address to bind to. When acting as a client, the address to connect to.")
 	flag.UintVar(&options.MSize, "msize", 2048, "The message size to request from the server, or the size to report to a client.")
 	flag.StringVar(&options.UName, "uname", "root", "The user name to use for attaching.")
@@ -110,8 +112,27 @@ func main() {
 	help := flag.Bool("help", false, "Show this help.")
 	flag.Parse()
 
-	if parts := strings.Split(options.Address, ":"); len(parts) == 1 {
-		options.Address += ":564"
+	if options.Network == "" {
+		switch {
+		case strings.Contains(options.Address, "!"):
+			parts := strings.Split(options.Address, "!")
+			if (len(parts) >= 2) && (len(parts) <= 3) {
+				options.Network = parts[0]
+				options.Address = strings.Join(parts[1:], ":")
+			}
+
+		case strings.Contains(options.Address, "/"), strings.HasSuffix(strings.ToLower(options.Address), ".sock"):
+			options.Network = "unix"
+
+		default:
+			options.Network = "tcp"
+		}
+	}
+
+	if strings.HasPrefix(options.Network, "tcp") {
+		if parts := strings.Split(options.Address, ":"); len(parts) == 1 {
+			options.Address += ":564"
+		}
 	}
 
 	runCommand := func(c Command) {
