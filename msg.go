@@ -140,7 +140,7 @@ const (
 	RauthType
 	TattachType
 	RattachType
-	terrorType // Not used.
+	terrorType // nolint Not used.
 	RerrorType
 	TflushType
 	RflushType
