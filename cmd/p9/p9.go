@@ -44,7 +44,18 @@ func (helpCmd) Desc() string {
 	return "Displays this help message."
 }
 
-func (helpCmd) Run(options GlobalOptions, args []string) error {
+func (helpCmd) Run(options GlobalOptions, args []string) (err error) {
+	if len(args) > 1 {
+		cmd := GetCommand(args[1])
+		if cmd != nil {
+			return cmd.Run(options, []string{args[1], "--help"})
+		}
+
+		fmt.Fprintf(os.Stderr, "Unknown help topic: %q\n", args[1])
+		fmt.Fprintf(os.Stderr, "\n")
+		err = flag.ErrHelp
+	}
+
 	arg0 := filepath.Base(os.Args[0])
 
 	fmt.Fprintf(os.Stderr, "%v is a command-line tool for both accessing and serving 9P filesystems.\n", arg0)
@@ -59,24 +70,24 @@ func (helpCmd) Run(options GlobalOptions, args []string) error {
 		fmt.Fprintf(os.Stderr, "\t%v\t\t%v\n", cmd.Name(), cmd.Desc())
 	}
 
-	return nil
+	return err
 }
 
 func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 	c, err := p9.Dial("tcp", options.Address)
 	if err != nil {
-		return fmt.Errorf("Failed to dial address: %v\n", err)
+		return fmt.Errorf("Failed to dial address: %v", err)
 	}
 	defer c.Close()
 
 	_, err = c.Handshake(uint32(options.MSize))
 	if err != nil {
-		return fmt.Errorf("Handshake failed: %v\n", err)
+		return fmt.Errorf("Handshake failed: %v", err)
 	}
 
 	a, err := c.Attach(nil, options.UName, options.AName)
 	if err != nil {
-		return fmt.Errorf("Failed to attach: %v\n", err)
+		return fmt.Errorf("Failed to attach: %v", err)
 	}
 	defer a.Close()
 
@@ -117,6 +128,10 @@ func main() {
 
 	err := c.Run(options, flag.Args())
 	if err != nil {
+		if err == flag.ErrHelp {
+			os.Exit(2)
+		}
+
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}

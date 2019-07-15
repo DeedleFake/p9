@@ -21,7 +21,15 @@ func (cmd *lsCmd) Desc() string {
 }
 
 func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
-	fset := flag.NewFlagSet("ls", flag.ExitOnError)
+	fset := flag.NewFlagSet(cmd.Name(), flag.ExitOnError)
+	fset.Usage = func() {
+		fmt.Fprintf(os.Stderr, "%v lists the files in a directory.\n", cmd.Name())
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "Usage: %v [-l] [path]\n", cmd.Name())
+		fmt.Fprintf(os.Stderr, "\n")
+		fmt.Fprintf(os.Stderr, "Options:\n")
+		fset.PrintDefaults()
+	}
 	fset.BoolVar(&cmd.showDetails, "l", false, "Show details.")
 	fset.Parse(args[1:])
 
