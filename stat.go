@@ -1,13 +1,16 @@
 package p9
 
-import "time"
+import (
+	"os"
+	"time"
+)
 
 // Stat is a stat value.
 type Stat struct {
 	Type   uint16
 	Dev    uint32
 	QID    QID
-	Mode   uint32 // TODO: Make a Mode type?
+	Mode   os.FileMode
 	ATime  time.Time
 	MTime  time.Time
 	Length uint64
@@ -84,7 +87,7 @@ func (s *Stat) decode(d *decoder) {
 // transmission using the Type field.
 type DirEntry struct {
 	Type   QIDType
-	Mode   uint32
+	Mode   os.FileMode
 	ATime  time.Time
 	MTime  time.Time
 	Length uint64
@@ -100,7 +103,7 @@ func (d DirEntry) stat(path uint64) Stat {
 			Type: d.Type,
 			Path: path,
 		},
-		Mode:   d.Mode | (uint32(d.Type) << 24),
+		Mode:   d.Mode | (os.FileMode(d.Type) << 24),
 		ATime:  d.ATime,
 		MTime:  d.MTime,
 		Length: d.Length,
@@ -122,7 +125,7 @@ func (c StatChanges) Type() (QIDType, bool) { // nolint
 	return c.DirEntry.Type, c.DirEntry.Type != 0xFF
 }
 
-func (c StatChanges) Mode() (uint32, bool) { // nolint
+func (c StatChanges) Mode() (os.FileMode, bool) { // nolint
 	return c.DirEntry.Mode, c.DirEntry.Mode != 0xFFFFFFFF
 }
 

@@ -28,7 +28,10 @@ const (
 	OTRUNC  uint8 = 0x10
 	ORCLOSE uint8 = 0x40
 
-	DMDIR uint32 = 0x80000000
+	DMDIR    uint32 = 0x80000000
+	DMAPPEND uint32 = 0x40000000
+	DMEXCL   uint32 = 0x20000000
+	DMTMP    uint32 = 0x04000000
 )
 
 // QID represents a QID value.

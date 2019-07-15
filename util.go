@@ -46,7 +46,7 @@ func infoToEntry(fi os.FileInfo) DirEntry {
 
 	return DirEntry{
 		Type:   t,
-		Mode:   uint32(fi.Mode()),
+		Mode:   fi.Mode(),
 		MTime:  fi.ModTime(),
 		Name:   fi.Name(),
 		Length: uint64(fi.Size()),
