@@ -72,3 +72,8 @@ func (t QIDType) encode(e *encoder) {
 func (t *QIDType) decode(d *decoder) {
 	d.Decode((*uint8)(t))
 }
+
+// Other constants.
+const (
+	IOHeaderSize = 24
+)

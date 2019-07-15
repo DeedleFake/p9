@@ -267,7 +267,7 @@ func (file *Remote) maxBufSize() int {
 	file.client.m.RLock()
 	defer file.client.m.RUnlock()
 
-	return int(file.client.msize - uint32(4+1+2+4))
+	return int(file.client.msize - IOHeaderSize)
 }
 
 func (file *Remote) readPart(buf []byte, off int64) (int, error) {
@@ -280,11 +280,11 @@ func (file *Remote) readPart(buf []byte, off int64) (int, error) {
 		return 0, err
 	}
 	read := rsp.(*Rread)
+	if len(read.Data) == 0 {
+		return 0, io.EOF
+	}
 
 	n := copy(buf, read.Data)
-	if n < len(buf) {
-		return n, io.EOF
-	}
 	return n, nil
 }
 
