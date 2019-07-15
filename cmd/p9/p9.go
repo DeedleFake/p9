@@ -114,6 +114,18 @@ func main() {
 		options.Address += ":564"
 	}
 
+	runCommand := func(c Command) {
+		err := c.Run(options, flag.Args())
+		if err != nil {
+			if err == flag.ErrHelp {
+				os.Exit(2)
+			}
+
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
 	cmd := flag.Arg(0)
 	if (cmd == "") || (*help) {
 		cmd = "help"
@@ -122,17 +134,9 @@ func main() {
 	c := GetCommand(cmd)
 	if c == nil {
 		fmt.Fprintf(os.Stderr, "No such command: %q", cmd)
-		GetCommand("help").Run(options, flag.Args())
+		runCommand(GetCommand("help"))
 		os.Exit(2)
 	}
 
-	err := c.Run(options, flag.Args())
-	if err != nil {
-		if err == flag.ErrHelp {
-			os.Exit(2)
-		}
-
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
+	runCommand(c)
 }

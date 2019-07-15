@@ -31,7 +31,10 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 		fset.PrintDefaults()
 	}
 	fset.BoolVar(&cmd.showDetails, "l", false, "Show details.")
-	fset.Parse(args[1:])
+	err := fset.Parse(args[1:])
+	if err != nil {
+		return fmt.Errorf("Failed to parse flags: %v", err)
+	}
 
 	return attach(options, func(a *p9.Remote) error {
 		d, err := a.Open(fset.Arg(0), p9.OREAD)

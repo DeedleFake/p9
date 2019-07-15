@@ -26,7 +26,10 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 		fmt.Fprintf(os.Stderr, "\n")
 		fmt.Fprintf(os.Stderr, "Usage: %v <path>\n", cmd.Name())
 	}
-	fset.Parse(args[1:])
+	err := fset.Parse(args[1:])
+	if err != nil {
+		return fmt.Errorf("Failed to parse flags: %v", err)
+	}
 
 	return attach(options, func(a *p9.Remote) error {
 		f, err := a.Open(fset.Arg(0), p9.OREAD)
