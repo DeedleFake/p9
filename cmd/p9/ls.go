@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"text/tabwriter"
 
 	"github.com/DeedleFake/p9"
 )
@@ -36,44 +37,74 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 		return fmt.Errorf("Failed to parse flags: %v", err)
 	}
 
+	args = fset.Args()
+	if len(args) == 0 {
+		args = []string{""}
+	}
+
 	return attach(options, func(a *p9.Remote) error {
-		d, err := a.Open(fset.Arg(0), p9.OREAD)
-		if err != nil {
-			return fmt.Errorf("Failed to open %q: %v", fset.Arg(0), err)
-		}
-		defer d.Close()
+		for i, arg := range args {
+			if len(args) > 1 {
+				fmt.Printf("%v:\n", arg)
+			}
 
-		fi, err := d.Stat("")
-		if err != nil {
-			return fmt.Errorf("Failed to stat: %v", err)
-		}
+			d, err := a.Open(arg, p9.OREAD)
+			if err != nil {
+				return fmt.Errorf("Failed to open %q: %v", arg, err)
+			}
+			defer d.Close()
 
-		if fi.Type&p9.QTDir == 0 {
-			cmd.printEntry(fi)
-			return nil
-		}
+			fi, err := d.Stat("")
+			if err != nil {
+				return fmt.Errorf("Failed to stat: %v", err)
+			}
 
-		fi.Name = "."
-		cmd.printEntry(fi)
+			if fi.Type&p9.QTDir == 0 {
+				cmd.printEntries([]p9.DirEntry{fi})
+				return nil
+			}
 
-		entries, err := d.Readdir()
-		if err != nil {
-			return fmt.Errorf("Failed to read dir: %v", err)
-		}
+			entries, err := d.Readdir()
+			if err != nil {
+				return fmt.Errorf("Failed to read dir: %v", err)
+			}
 
-		for _, entry := range entries {
-			cmd.printEntry(entry)
+			fi.Name = "."
+			cmd.printEntries(append([]p9.DirEntry{fi}, entries...))
+
+			if i < len(args)-1 {
+				fmt.Println()
+			}
 		}
 
 		return nil
 	})
 }
 
-func (cmd *lsCmd) printEntry(entry p9.DirEntry) {
-	if cmd.showDetails {
-		fmt.Printf("%v ", os.FileMode(entry.Mode))
+func (cmd *lsCmd) printEntries(entries []p9.DirEntry) {
+	w := tabwriter.NewWriter(
+		os.Stdout,
+		0,
+		4,
+		1,
+		' ',
+		0,
+	)
+	defer w.Flush()
+
+	for _, entry := range entries {
+		if cmd.showDetails {
+			fmt.Fprintf(
+				w,
+				"%v\t%v\t%v\t%v\t",
+				os.FileMode(entry.Mode),
+				entry.UID,
+				entry.GID,
+				entry.Length, // TODO: Right-align this column.
+			)
+		}
+		fmt.Fprintf(w, "%v\n", entry.Name)
 	}
-	fmt.Printf("%v\n", entry.Name)
 }
 
 func init() {
