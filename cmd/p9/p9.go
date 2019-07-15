@@ -94,6 +94,42 @@ func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 	return f(a)
 }
 
+func parseAddr(addr string) (network, host, port string) {
+	defer func() {
+		if (len(host) > 0) && (host[0] == '$') {
+			network, host, port = getNamespaceHost(network, host, port)
+		}
+
+		switch port {
+		case "9fs", "9p":
+			port = "564"
+		}
+	}()
+
+	parts := strings.SplitN(addr, "!", 3)
+	switch len(parts) {
+	case 0:
+		return "tcp", "localhost", "564"
+
+	case 1:
+		port = "564"
+		sub := strings.SplitN(parts[0], ":", 2)
+		host = sub[0]
+		if len(sub) == 2 {
+			port = sub[1]
+		}
+		return "tcp", host, port
+
+	case 2:
+		return parts[0], parts[1], ""
+
+	case 3:
+		return parts[0], parts[1], parts[2]
+	}
+
+	panic("This should never be reached.")
+}
+
 type GlobalOptions struct {
 	Network string
 	Address string
@@ -104,7 +140,6 @@ type GlobalOptions struct {
 
 func main() {
 	var options GlobalOptions
-	flag.StringVar(&options.Network, "net", "", "The network protocol to use. Defaults to trying to guess from the address.")
 	flag.StringVar(&options.Address, "addr", "localhost:564", "When acting as a server, the address to bind to. When acting as a client, the address to connect to.")
 	flag.UintVar(&options.MSize, "msize", 2048, "The message size to request from the server, or the size to report to a client.")
 	flag.StringVar(&options.UName, "uname", "root", "The user name to use for attaching.")
@@ -112,27 +147,14 @@ func main() {
 	help := flag.Bool("help", false, "Show this help.")
 	flag.Parse()
 
-	if options.Network == "" {
-		switch {
-		case strings.Contains(options.Address, "!"):
-			parts := strings.Split(options.Address, "!")
-			if (len(parts) >= 2) && (len(parts) <= 3) {
-				options.Network = parts[0]
-				options.Address = strings.Join(parts[1:], ":")
-			}
-
-		case strings.Contains(options.Address, "/"), strings.HasSuffix(strings.ToLower(options.Address), ".sock"):
-			options.Network = "unix"
-
-		default:
-			options.Network = "tcp"
-		}
+	n, a, p := parseAddr(options.Address)
+	if (p == "") && strings.HasPrefix(a, "tcp") {
+		p = "564"
 	}
-
-	if strings.HasPrefix(options.Network, "tcp") {
-		if parts := strings.Split(options.Address, ":"); len(parts) == 1 {
-			options.Address += ":564"
-		}
+	options.Network = n
+	options.Address = a
+	if p != "" {
+		options.Address += ":" + p
 	}
 
 	runCommand := func(c Command) {
