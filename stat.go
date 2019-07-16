@@ -2,7 +2,6 @@ package p9
 
 import (
 	"os"
-	"strconv"
 	"time"
 	"unsafe"
 )
@@ -117,7 +116,6 @@ func (m FileMode) Perm() FileMode {
 func (m FileMode) String() string {
 	buf := []byte("----------")
 
-	debugLog("%v\n", strconv.FormatUint(uint64(m), 2))
 	const types = "dalMATL!DpSug"
 	for i := range types {
 		if m&(1<<uint(31-i)) != 0 {
@@ -160,7 +158,6 @@ type Stat struct {
 
 func (s Stat) dirEntry() DirEntry {
 	return DirEntry{
-		Type:   s.QID.Type,
 		Mode:   s.Mode,
 		ATime:  s.ATime,
 		MTime:  s.MTime,
@@ -220,11 +217,7 @@ func (s *Stat) decode(d *decoder) {
 
 // DirEntry is a smaller version of Stat that eliminates unnecessary
 // or duplicate fields.
-//
-// Note that the top 8-bits of the Mode field are overwritten during
-// transmission using the Type field.
 type DirEntry struct {
-	Type   QIDType
 	Mode   FileMode
 	ATime  time.Time
 	MTime  time.Time
@@ -237,8 +230,9 @@ type DirEntry struct {
 
 func (d DirEntry) stat(path uint64) Stat {
 	return Stat{
+		Type: uint16(d.Mode >> 16),
 		QID: QID{
-			Type: d.Type,
+			Type: QIDType(d.Mode >> 24),
 			Path: path,
 		},
 		Mode:   d.Mode,
@@ -257,10 +251,6 @@ func (d DirEntry) stat(path uint64) Stat {
 // considered unset in the DirEntry.
 type StatChanges struct {
 	DirEntry
-}
-
-func (c StatChanges) Type() (QIDType, bool) { // nolint
-	return c.DirEntry.Type, c.DirEntry.Type != 0xFF
 }
 
 func (c StatChanges) Mode() (FileMode, bool) { // nolint

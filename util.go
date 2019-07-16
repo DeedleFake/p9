@@ -39,13 +39,7 @@ func (lr *LimitedReader) Read(buf []byte) (int, error) {
 }
 
 func infoToEntry(fi os.FileInfo) DirEntry {
-	t := QTFile
-	if fi.IsDir() {
-		t = QTDir
-	}
-
 	return DirEntry{
-		Type:   t,
 		Mode:   ModeFromOS(fi.Mode()),
 		MTime:  fi.ModTime(),
 		Name:   fi.Name(),
