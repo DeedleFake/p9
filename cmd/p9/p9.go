@@ -10,6 +10,8 @@ import (
 	"github.com/DeedleFake/p9"
 )
 
+const StandardPort = "564"
+
 type Command interface {
 	Name() string
 	Desc() string
@@ -102,17 +104,17 @@ func parseAddr(addr string) (network, host, port string) {
 
 		switch port {
 		case "9fs", "9p":
-			port = "564"
+			port = StandardPort
 		}
 	}()
 
 	parts := strings.SplitN(addr, "!", 3)
 	switch len(parts) {
 	case 0:
-		return "tcp", "localhost", "564"
+		return "tcp", "localhost", StandardPort
 
 	case 1:
-		port = "564"
+		port = StandardPort
 		sub := strings.SplitN(parts[0], ":", 2)
 		host = sub[0]
 		if len(sub) == 2 {
@@ -140,8 +142,18 @@ type GlobalOptions struct {
 
 func main() {
 	var options GlobalOptions
-	flag.StringVar(&options.Address, "addr", "localhost:564", "When acting as a server, the address to bind to. When acting as a client, the address to connect to.")
-	flag.UintVar(&options.MSize, "msize", 2048, "The message size to request from the server, or the size to report to a client.")
+	flag.StringVar(
+		&options.Address,
+		"addr",
+		"localhost:"+StandardPort,
+		"When acting as a server, the address to bind to. When acting as a client, the address to connect to.",
+	)
+	flag.UintVar(
+		&options.MSize,
+		"msize",
+		2048,
+		"The message size to request from the server, or the size to report to a client.",
+	)
 	flag.StringVar(&options.UName, "uname", "root", "The user name to use for attaching.")
 	flag.StringVar(&options.AName, "aname", "", "The filesystem root to attach to.")
 	help := flag.Bool("help", false, "Show this help.")
@@ -149,7 +161,7 @@ func main() {
 
 	n, a, p := parseAddr(options.Address)
 	if (p == "") && strings.HasPrefix(a, "tcp") {
-		p = "564"
+		p = StandardPort
 	}
 	options.Network = n
 	options.Address = a
