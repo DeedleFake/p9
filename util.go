@@ -2,7 +2,6 @@ package p9
 
 import (
 	"io"
-	"os"
 )
 
 // LimitedReader is a reimplementation of io.LimitedReader with two
@@ -36,30 +35,4 @@ func (lr *LimitedReader) Read(buf []byte) (int, error) {
 	n, err := lr.R.Read(buf)
 	lr.N -= uint32(n)
 	return n, err
-}
-
-func infoToEntry(fi os.FileInfo) DirEntry {
-	return DirEntry{
-		Mode:   ModeFromOS(fi.Mode()),
-		MTime:  fi.ModTime(),
-		Name:   fi.Name(),
-		Length: uint64(fi.Size()),
-	}
-}
-
-func toOSFlags(mode uint8) (flag int) {
-	if mode&OREAD != 0 {
-		flag |= os.O_RDONLY
-	}
-	if mode&OWRITE != 0 {
-		flag |= os.O_WRONLY
-	}
-	if mode&ORDWR != 0 {
-		flag |= os.O_RDWR
-	}
-	if mode&OTRUNC != 0 {
-		flag |= os.O_TRUNC
-	}
-
-	return flag
 }
