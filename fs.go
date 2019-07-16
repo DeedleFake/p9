@@ -120,9 +120,9 @@ type fsHandler struct {
 
 	fids sync.Map // map[uint32]*fsFile
 
-	qidM     sync.Mutex
+	pathM    sync.Mutex
 	nextPath uint64
-	qids     map[string]QID
+	paths    map[string]uint64
 }
 
 // FSHandler returns a MessageHandler that provides a virtual
@@ -141,7 +141,7 @@ func FSHandler(fs FileSystem, msize uint32) MessageHandler {
 		fs:    fs,
 		msize: msize,
 
-		qids: make(map[string]QID),
+		paths: make(map[string]uint64),
 	}
 }
 
@@ -163,26 +163,31 @@ func (h *fsHandler) getNextPath() uint64 {
 }
 
 func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
-	h.qidM.Lock()
-	defer h.qidM.Unlock()
-
-	n, ok := h.qids[p]
-	if ok {
-		return n, nil
-	}
-
 	stat, err := attach.Stat(p)
 	if err != nil {
-		return n, err
+		return QID{}, err
 	}
 
-	n = QID{
-		Type: stat.Type,
-		Path: h.getNextPath(),
-	}
-	h.qids[p] = n
+	h.pathM.Lock()
+	defer h.pathM.Unlock()
 
-	return n, nil
+	n, ok := h.paths[p]
+	if ok {
+		return QID{
+			Type:    stat.Type,
+			Version: 0,
+			Path:    n,
+		}, nil
+	}
+
+	n = h.getNextPath()
+	h.paths[p] = n
+
+	return QID{
+		Type:    stat.Type,
+		Version: 0,
+		Path:    n,
+	}, nil
 }
 
 func (h *fsHandler) getFile(fid uint32, create bool) (*fsFile, bool) {
@@ -560,10 +565,6 @@ func (h *fsHandler) clunk(msg *Tclunk) Message {
 	file.RLock()
 	defer file.RUnlock()
 
-	h.qidM.Lock()
-	defer h.qidM.Unlock()
-	delete(h.qids, file.path)
-
 	if file.file == nil {
 		return new(Rclunk)
 	}
@@ -655,13 +656,14 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 		}
 	}
 
+	// TODO: This probably isn't how this should work...
 	if name, ok := changes.Name(); ok {
-		h.qidM.Lock()
-		defer h.qidM.Unlock()
+		h.pathM.Lock()
+		defer h.pathM.Unlock()
 
 		next := path.Join(path.Dir(file.path), name)
-		h.qids[next] = h.qids[file.path]
-		delete(h.qids, file.path)
+		h.paths[next] = h.paths[file.path]
+		delete(h.paths, file.path)
 
 		file.path = next
 	}
