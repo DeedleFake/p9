@@ -16,15 +16,12 @@ const (
 	ModeAuth
 	ModeTemporary
 	ModeSymlink
-	modeUnused
+	_
 	ModeDevice
 	ModeNamedPipe
 	ModeSocket
 	ModeSetuid
 	ModeSetgid
-
-	osModeType = os.ModeDir | os.ModeAppend | os.ModeExclusive | os.ModeTemporary | os.ModeSymlink | os.ModeDevice | os.ModeNamedPipe | os.ModeSocket | os.ModeSetuid | os.ModeSetgid
-	modeType   = ModeDir | ModeAppend | ModeExclusive | ModeMount | ModeAuth | ModeTemporary | ModeSymlink | ModeDevice | ModeNamedPipe | ModeSocket | ModeSetuid | ModeSetgid
 )
 
 func ModeFromOS(m os.FileMode) FileMode {
@@ -106,7 +103,7 @@ func (m FileMode) QIDType() QIDType {
 }
 
 func (m FileMode) Type() FileMode {
-	return m & modeType
+	return m & 0xFFFF0000
 }
 
 func (m FileMode) Perm() FileMode {

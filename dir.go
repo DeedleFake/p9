@@ -164,6 +164,7 @@ func (a AuthFS) Attach(afile File, user, aname string) (Attachment, error) { // 
 }
 
 func infoToEntry(fi os.FileInfo) DirEntry {
+	// TODO: Add the missing fields.
 	return DirEntry{
 		Mode:   ModeFromOS(fi.Mode()),
 		MTime:  fi.ModTime(),
