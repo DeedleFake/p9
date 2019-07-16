@@ -97,7 +97,7 @@ func (cmd *lsCmd) printEntries(entries []p9.DirEntry) {
 			fmt.Fprintf(
 				w,
 				"%v\t%v\t%v\t%v\t",
-				os.FileMode(entry.Mode),
+				entry.Mode,
 				entry.UID,
 				entry.GID,
 				entry.Length, // TODO: Right-align this column.
