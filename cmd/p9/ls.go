@@ -59,7 +59,7 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 				return fmt.Errorf("Failed to stat: %v", err)
 			}
 
-			if fi.Type&p9.QTDir == 0 {
+			if fi.Mode&p9.ModeDir == 0 {
 				cmd.printEntries([]p9.DirEntry{fi})
 				return nil
 			}
