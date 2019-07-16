@@ -27,11 +27,6 @@ const (
 
 	OTRUNC  uint8 = 0x10
 	ORCLOSE uint8 = 0x40
-
-	DMDIR    uint32 = 0x80000000
-	DMAPPEND uint32 = 0x40000000
-	DMEXCL   uint32 = 0x20000000
-	DMTMP    uint32 = 0x04000000
 )
 
 // QID represents a QID value.
@@ -58,15 +53,19 @@ type QIDType uint8
 
 // Valid types of files.
 const (
-	QTFile    QIDType = 0
-	QTSymlink QIDType = 1 << iota
-	QTTmp
-	QTAuth
-	QTMount
-	QTExcl
+	QTFile QIDType = 0
+	QTDir  QIDType = 1 << (8 - iota)
 	QTAppend
-	QTDir
+	QTExcl
+	QTMount
+	QTAuth
+	QTTmp
+	QTSymlink
 )
+
+func (t QIDType) FileMode() FileMode {
+	return FileMode(t) << 24
+}
 
 func (t QIDType) encode(e *encoder) {
 	e.Encode(uint8(t))

@@ -61,7 +61,7 @@ type Attachment interface {
 	// When creating a directory, this method will be called with the
 	// DMDIR bit set in perm. Even in this situation it should still
 	// open and return the newly created file.
-	Create(path string, perm uint32, mode uint8) (File, error)
+	Create(path string, perm FileMode, mode uint8) (File, error)
 
 	// Remove deletes the file at path, returning any errors encountered.
 	Remove(path string) error

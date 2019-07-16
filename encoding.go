@@ -4,7 +4,6 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
-	"os"
 	"time"
 )
 
@@ -115,21 +114,6 @@ func (e *encoder) Encode(v interface{}) {
 	case time.Time:
 		e.err = e.mode(uint32(v.Unix()))
 
-	case os.FileMode:
-		fixed := uint32(v.Perm())
-		switch v & (os.ModeDir | os.ModeAppend | os.ModeExclusive | os.ModeTemporary) {
-		case os.ModeDir:
-			fixed |= DMDIR
-		case os.ModeAppend:
-			fixed |= DMAPPEND
-		case os.ModeExclusive:
-			fixed |= DMEXCL
-		case os.ModeTemporary:
-			fixed |= DMTMP
-		}
-
-		e.err = e.mode(fixed)
-
 	default:
 		panic(fmt.Errorf("Unexpected type: %T", v))
 	}
@@ -231,26 +215,6 @@ func (d *decoder) Decode(v interface{}) {
 		}
 
 		*v = time.Unix(int64(sec), 0)
-
-	case *os.FileMode:
-		var raw os.FileMode
-		err := binary.Read(d, binary.LittleEndian, &raw)
-		if err != nil {
-			d.err = err
-			return
-		}
-
-		*v = raw.Perm()
-		switch uint32(raw) & (DMDIR | DMAPPEND | DMEXCL | DMTMP) {
-		case DMDIR:
-			*v |= os.ModeDir
-		case DMAPPEND:
-			*v |= os.ModeAppend
-		case DMEXCL:
-			*v |= os.ModeExclusive
-		case DMTMP:
-			*v |= os.ModeTemporary
-		}
 
 	default:
 		panic(fmt.Errorf("Unexpected type: %T", v))

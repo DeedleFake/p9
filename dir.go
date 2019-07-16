@@ -36,8 +36,8 @@ func (d Dir) WriteStat(p string, changes StatChanges) error { // nolint
 
 	mode, ok := changes.Mode()
 	if ok {
-		perm := os.FileMode(mode).Perm()
-		err := os.Chmod(p, perm)
+		perm := mode.Perm()
+		err := os.Chmod(p, os.FileMode(perm))
 		if err != nil {
 			return err
 		}
@@ -93,12 +93,11 @@ func (d Dir) Open(p string, mode uint8) (File, error) { // nolint
 	}, err
 }
 
-func (d Dir) Create(p string, perm uint32, mode uint8) (File, error) { // nolint
+func (d Dir) Create(p string, perm FileMode, mode uint8) (File, error) { // nolint
 	p = d.path(p)
-	osperm := os.FileMode(perm).Perm()
 
-	if perm&DMDIR != 0 {
-		err := os.Mkdir(p, osperm)
+	if perm&ModeDir != 0 {
+		err := os.Mkdir(p, os.FileMode(perm.Perm()))
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +105,7 @@ func (d Dir) Create(p string, perm uint32, mode uint8) (File, error) { // nolint
 
 	flag := toOSFlags(mode)
 
-	file, err := os.OpenFile(p, flag|os.O_CREATE, osperm)
+	file, err := os.OpenFile(p, flag|os.O_CREATE, os.FileMode(perm.Perm()))
 	return &dirFile{
 		File: file,
 	}, err
