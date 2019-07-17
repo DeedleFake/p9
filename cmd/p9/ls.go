@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"strconv"
+	"sort"
 	"text/tabwriter"
 	"time"
 
@@ -70,6 +70,9 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 			if err != nil {
 				return fmt.Errorf("Failed to read dir: %v", err)
 			}
+			sort.Slice(entries, func(i1, i2 int) bool {
+				return entries[i1].Name < entries[i2].Name
+			})
 
 			fi.Name = "."
 			cmd.printEntries(append([]p9.DirEntry{fi}, entries...))
@@ -96,21 +99,19 @@ func (cmd *lsCmd) printEntries(entries []p9.DirEntry) {
 
 	for _, entry := range entries {
 		if cmd.showDetails {
-			yd := strconv.FormatInt(int64(entry.MTime.Year()), 10)
-			if entry.MTime.Year() == time.Now().Year() {
-				yd = entry.MTime.Format("15:04")
+			yd := "15:04"
+			if entry.MTime.Year() != time.Now().Year() {
+				yd = "2006"
 			}
 
 			fmt.Fprintf(
 				w,
-				"%v\t%v\t%v\t%v\t%v\t%v\t%v\t",
+				"%v\t%v\t%v\t%v\t%v\t",
 				entry.Mode,
 				entry.UID,
 				entry.GID,
 				entry.Length, // TODO: Right-align this column.
-				entry.MTime.Month().String()[:3],
-				entry.MTime.Day(),
-				yd,
+				entry.MTime.Format("Jan 02 "+yd),
 			)
 		}
 		fmt.Fprintf(w, "%v\n", entry.Name)
