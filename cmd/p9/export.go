@@ -42,7 +42,7 @@ func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 
 	fs := p9.FileSystem(p9.Dir(args[0]))
 	if !*rw {
-		fs = &p9.ReadOnlyFS{fs}
+		fs = p9.ReadOnlyFS(fs)
 	}
 
 	err = p9.ListenAndServe(
