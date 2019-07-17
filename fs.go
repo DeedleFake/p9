@@ -215,7 +215,7 @@ func (h *fsHandler) getFile(fid uint32, create bool) (*fsFile, bool) {
 }
 
 func (h *fsHandler) largeCount(count uint32) bool {
-	return 4+1+2+4+count > h.msize
+	return IOHeaderSize+count > h.msize
 }
 
 func (h *fsHandler) version(msg *Tversion) Message {
