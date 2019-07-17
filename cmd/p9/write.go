@@ -46,7 +46,7 @@ func (cmd *writeCmd) Run(options GlobalOptions, args []string) error {
 
 	return attach(options, func(a *p9.Remote) error {
 		open := func() (*p9.Remote, error) {
-			trunc := p9.OTRUNC
+			trunc := uint8(p9.OTRUNC)
 			if *app {
 				trunc = 0
 			}
