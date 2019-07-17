@@ -215,7 +215,7 @@ func (h *fsHandler) getFile(fid uint32, create bool) (*fsFile, bool) {
 }
 
 func (h *fsHandler) largeCount(count uint32) bool {
-	return 4+1+2+4+count > h.msize
+	return IOHeaderSize+count > h.msize
 }
 
 func (h *fsHandler) version(msg *Tversion) Message {
@@ -667,17 +667,19 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 		}
 	}
 
-	// TODO: This probably isn't how this should work...
-	if name, ok := changes.Name(); ok {
-		h.pathM.Lock()
-		defer h.pathM.Unlock()
+	// TODO: If the path is different because the name got changed,
+	// should the QID change, too? I think it should, but I'm actually
+	// not entirely sure.
+	//if name, ok := changes.Name(); ok {
+	//	h.pathM.Lock()
+	//	defer h.pathM.Unlock()
 
-		next := path.Join(path.Dir(file.path), name)
-		h.paths[next] = h.paths[file.path]
-		delete(h.paths, file.path)
+	//	next := path.Join(path.Dir(file.path), name)
+	//	h.paths[next] = h.paths[file.path]
+	//	delete(h.paths, file.path)
 
-		file.path = next
-	}
+	//	file.path = next
+	//}
 
 	return new(Rwstat)
 }
