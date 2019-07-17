@@ -58,6 +58,12 @@ func AttachHandler(h http.Handler) http.Handler {
 		}
 		defer c.Close()
 
+		_, err = c.Handshake(4096)
+		if err != nil {
+			Error(rw, err, http.StatusInternalServerError)
+			return
+		}
+
 		a, err := c.Attach(nil, q.Get("user"), q.Get("aname"))
 		if err != nil {
 			Error(rw, err, http.StatusBadRequest)
