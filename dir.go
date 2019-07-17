@@ -163,16 +163,6 @@ func (a AuthFS) Attach(afile File, user, aname string) (Attachment, error) { // 
 	return a.FileSystem.Attach(file, user, aname)
 }
 
-func infoToEntry(fi os.FileInfo) DirEntry {
-	// TODO: Add the missing fields.
-	return DirEntry{
-		Mode:   ModeFromOS(fi.Mode()),
-		MTime:  fi.ModTime(),
-		Name:   fi.Name(),
-		Length: uint64(fi.Size()),
-	}
-}
-
 func toOSFlags(mode uint8) (flag int) {
 	if mode&OREAD != 0 {
 		flag |= os.O_RDONLY
