@@ -63,6 +63,7 @@ const (
 	QTSymlink
 )
 
+// FileMode converts the QIDType to a FileMode.
 func (t QIDType) FileMode() FileMode {
 	return FileMode(t) << 24
 }

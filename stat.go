@@ -6,8 +6,11 @@ import (
 	"unsafe"
 )
 
+// FileMode stores permission and type information about a file or
+// directory.
 type FileMode uint32
 
+// FileMode type bitmasks.
 const (
 	ModeDir FileMode = 1 << (31 - iota)
 	ModeAppend
@@ -24,6 +27,7 @@ const (
 	ModeSetgid
 )
 
+// ModeFromOS converts an os.FileMode to a FileMode.
 func ModeFromOS(m os.FileMode) FileMode {
 	r := FileMode(m.Perm())
 
@@ -61,6 +65,7 @@ func ModeFromOS(m os.FileMode) FileMode {
 	return r
 }
 
+// OS converts a FileMode to an os.FileMode.
 func (m FileMode) OS() os.FileMode {
 	r := os.FileMode(m.Perm())
 
@@ -98,19 +103,24 @@ func (m FileMode) OS() os.FileMode {
 	return r
 }
 
+// QIDType converts a FileMode to a QIDType. Note that this will
+// result in a loss of information, as the information stored by
+// QIDType is a direct subset of that handled by FileMode.
 func (m FileMode) QIDType() QIDType {
 	return QIDType(m >> 24)
 }
 
+// Type returns a FileMode containing only the type bits of m.
 func (m FileMode) Type() FileMode {
 	return m & 0xFFFF0000
 }
 
+// Perm returns a FileMode containing only the permission bits of m.
 func (m FileMode) Perm() FileMode {
 	return m & 0777
 }
 
-func (m FileMode) String() string {
+func (m FileMode) String() string { // nolint
 	buf := []byte("----------")
 
 	const types = "dalMATL!DpSug"
