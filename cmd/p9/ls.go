@@ -4,7 +4,9 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"text/tabwriter"
+	"time"
 
 	"github.com/DeedleFake/p9"
 )
@@ -94,13 +96,21 @@ func (cmd *lsCmd) printEntries(entries []p9.DirEntry) {
 
 	for _, entry := range entries {
 		if cmd.showDetails {
+			yd := strconv.FormatInt(int64(entry.MTime.Year()), 10)
+			if entry.MTime.Year() == time.Now().Year() {
+				yd = entry.MTime.Format("15:04")
+			}
+
 			fmt.Fprintf(
 				w,
-				"%v\t%v\t%v\t%v\t",
+				"%v\t%v\t%v\t%v\t%v\t%v\t%v\t",
 				entry.Mode,
 				entry.UID,
 				entry.GID,
 				entry.Length, // TODO: Right-align this column.
+				entry.MTime.Month().String()[:3],
+				entry.MTime.Day(),
+				yd,
 			)
 		}
 		fmt.Fprintf(w, "%v\n", entry.Name)
