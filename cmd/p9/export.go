@@ -27,6 +27,7 @@ func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 		fmt.Fprintf(fset.Output(), "Options:\n")
 		fset.PrintDefaults()
 	}
+	rw := fset.Bool("rw", false, "Make exported FS writable.")
 	err := fset.Parse(args[1:])
 	if err != nil {
 		return fmt.Errorf("Failed to parse flags: %v", err)
@@ -39,10 +40,15 @@ func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 		return flag.ErrHelp
 	}
 
+	fs := p9.FileSystem(p9.Dir(args[0]))
+	if !*rw {
+		fs = &p9.ReadOnlyFS{fs}
+	}
+
 	err = p9.ListenAndServe(
 		options.Network,
 		options.Address,
-		p9.FSConnHandler(p9.Dir(args[0]), uint32(options.MSize)),
+		p9.FSConnHandler(fs, uint32(options.MSize)),
 	)
 	if err != nil {
 		return fmt.Errorf("Failed to start server: %v", err)
