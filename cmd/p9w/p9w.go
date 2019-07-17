@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/DeedleFake/p9"
 )
@@ -16,6 +18,7 @@ import (
 type ctxKey string
 
 const (
+	AddrKey   ctxKey = "addr"
 	ClientKey ctxKey = "client"
 	AttachKey ctxKey = "attach"
 )
@@ -39,7 +42,16 @@ func AttachHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		q := req.URL.Query()
 
-		c, err := p9.Dial("tcp", q.Get("addr"))
+		addr := q.Get("addr")
+		if addr == "" {
+			Error(rw, errors.New("addr not specified"), http.StatusBadRequest)
+			return
+		}
+		if parts := strings.SplitN(addr, ":", 2); len(parts) < 2 {
+			addr += ":564"
+		}
+
+		c, err := p9.Dial("tcp", addr)
 		if err != nil {
 			Error(rw, err, http.StatusBadRequest)
 			return
@@ -54,8 +66,9 @@ func AttachHandler(h http.Handler) http.Handler {
 		defer a.Close()
 
 		ctx := req.Context()
-		ctx = context.WithValue(ctx, AttachKey, a)
+		ctx = context.WithValue(ctx, AddrKey, addr)
 		ctx = context.WithValue(ctx, ClientKey, c)
+		ctx = context.WithValue(ctx, AttachKey, a)
 		h.ServeHTTP(rw, req.WithContext(ctx))
 	})
 }
@@ -84,13 +97,14 @@ func DispositionHandler(h http.Handler) http.Handler {
 }
 
 func handleLS(rw http.ResponseWriter, req *http.Request) {
+	addr := req.Context().Value(AddrKey).(string)
+	a := req.Context().Value(AttachKey).(*p9.Remote)
+
 	rw.Header().Set("Content-Type", "application/json")
 	e := json.NewEncoder(rw)
 
 	q := req.URL.Query()
-	log.Printf("ls %v %v", q.Get("addr"), q.Get("path"))
-
-	a := req.Context().Value(AttachKey).(*p9.Remote)
+	log.Printf("ls %v %v", addr, q.Get("path"))
 
 	fi, err := a.Stat(q.Get("path"))
 	if err != nil {
@@ -120,10 +134,11 @@ func handleLS(rw http.ResponseWriter, req *http.Request) {
 }
 
 func handleRead(rw http.ResponseWriter, req *http.Request) {
-	q := req.URL.Query()
-	log.Printf("read %v %v", q.Get("addr"), q.Get("path"))
-
+	addr := req.Context().Value(AddrKey).(string)
 	a := req.Context().Value(AttachKey).(*p9.Remote)
+
+	q := req.URL.Query()
+	log.Printf("read %v %v", addr, q.Get("path"))
 
 	f, err := a.Open(q.Get("path"), p9.OREAD)
 	if err != nil {
