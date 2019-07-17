@@ -32,9 +32,9 @@ func Error(rw http.ResponseWriter, err error, status int) {
 	rw.WriteHeader(status)
 
 	e.Encode(struct {
-		Err error
+		Err string `json:"error"`
 	}{
-		Err: err,
+		Err: err.Error(),
 	})
 }
 
