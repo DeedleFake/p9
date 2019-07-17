@@ -31,11 +31,12 @@ func Error(rw http.ResponseWriter, err error, status int) {
 
 	rw.WriteHeader(status)
 
-	e.Encode(struct {
+	err = e.Encode(struct {
 		Err string `json:"error"`
 	}{
 		Err: err.Error(),
 	})
+	log.Printf("Error encoding error: %v", err)
 }
 
 func AttachHandler(h http.Handler) http.Handler {
@@ -119,7 +120,10 @@ func handleLS(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if fi.Mode&p9.ModeDir == 0 {
-		e.Encode(fi)
+		err := e.Encode(fi)
+		if err != nil {
+			log.Printf("Error encoding: %v", err)
+		}
 		return
 	}
 
@@ -136,7 +140,10 @@ func handleLS(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	e.Encode(entries)
+	err = e.Encode(entries)
+	if err != nil {
+		log.Printf("Error encoding: %v", err)
+	}
 }
 
 func handleRead(rw http.ResponseWriter, req *http.Request) {
@@ -155,13 +162,13 @@ func handleRead(rw http.ResponseWriter, req *http.Request) {
 
 	_, err = io.Copy(rw, f)
 	if err != nil {
-		Error(rw, err, http.StatusInternalServerError)
+		log.Printf("Error sending data: %v", err)
 		return
 	}
 }
 
 func handleMain(rw http.ResponseWriter, req *http.Request) {
-	io.WriteString(rw, `<html>
+	_, err := io.WriteString(rw, `<html>
 	<body>
 		<h3>Global Parameters</h3>
 		<ul>
@@ -180,6 +187,9 @@ func handleMain(rw http.ResponseWriter, req *http.Request) {
 		</dl>
 	</body>
 </html>`)
+	if err != nil {
+		log.Printf("Error writing string: %v", err)
+	}
 }
 
 func main() {
