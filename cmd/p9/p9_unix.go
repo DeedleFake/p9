@@ -3,6 +3,7 @@
 package main
 
 import (
+	"os"
 	"os/user"
 	"path/filepath"
 )
@@ -13,9 +14,13 @@ func getNamespaceHost(network, host, port string) (string, string, string) {
 		panic(err)
 	}
 
-	network = "unix"
-	host = filepath.Join("/", "tmp", "ns."+u.Username+".:0", host[1:])
-	port = ""
+	tmpdir := os.Getenv("TMPDIR")
+	if tmpdir == "" {
+		tmpdir = "/tmp"
+	}
 
-	return network, host, port
+	nsdir := filepath.Join(tmpdir, "ns."+u.Username+".:0")
+	_ = os.MkdirAll(nsdir, 0700)
+
+	return "unix", filepath.Join(nsdir, host[1:]), ""
 }

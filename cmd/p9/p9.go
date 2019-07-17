@@ -188,7 +188,7 @@ func main() {
 
 	c := GetCommand(cmd)
 	if c == nil {
-		fmt.Fprintf(os.Stderr, "No such command: %q", cmd)
+		fmt.Fprintf(os.Stderr, "No such command: %q\n", cmd)
 		runCommand(GetCommand("help"))
 		os.Exit(2)
 	}

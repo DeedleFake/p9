@@ -22,7 +22,7 @@ func (cmd *writeCmd) Desc() string {
 func (cmd *writeCmd) Run(options GlobalOptions, args []string) error {
 	fset := flag.NewFlagSet(cmd.Name(), flag.ExitOnError)
 	fset.Usage = func() {
-		fmt.Fprintf(fset.Output(), "%v copies the entirety of stdin into a file.", cmd.Name())
+		fmt.Fprintf(fset.Output(), "%v copies the entirety of stdin into a file.\n", cmd.Name())
 		fmt.Fprintf(fset.Output(), "\n")
 		fmt.Fprintf(fset.Output(), "Usage: %v [options] <path>\n", cmd.Name())
 	}

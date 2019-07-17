@@ -23,7 +23,7 @@ func (cmd *statCmd) Desc() string {
 func (cmd *statCmd) Run(options GlobalOptions, args []string) error {
 	fset := flag.NewFlagSet(cmd.Name(), flag.ExitOnError)
 	fset.Usage = func() {
-		fmt.Fprintf(fset.Output(), "%v gives detailed information about a file.")
+		fmt.Fprintf(fset.Output(), "%v gives detailed information about a file.\n", args[0])
 		fmt.Fprintf(fset.Output(), "\n")
 		fmt.Fprintf(fset.Output(), "Usage: %v [options] [path...]\n", cmd.Name())
 		fmt.Fprintf(fset.Output(), "\n")

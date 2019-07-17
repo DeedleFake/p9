@@ -20,7 +20,7 @@ func (cmd *exportCmd) Desc() string {
 func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 	fset := flag.NewFlagSet(cmd.Name(), flag.ExitOnError)
 	fset.Usage = func() {
-		fmt.Fprintf(fset.Output(), "%v serves a directory over 9P.", cmd.Name())
+		fmt.Fprintf(fset.Output(), "%v serves a directory over 9P.\n", cmd.Name())
 		fmt.Fprintf(fset.Output(), "\n")
 		fmt.Fprintf(fset.Output(), "Usage: %v <path>\n", cmd.Name())
 		fmt.Fprintf(fset.Output(), "\n")
