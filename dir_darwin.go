@@ -1,4 +1,4 @@
-// +build linux
+// +build darwin
 
 package p9
 
@@ -35,7 +35,7 @@ func infoToEntry(fi os.FileInfo) DirEntry {
 
 	return DirEntry{
 		Mode:   ModeFromOS(fi.Mode()),
-		ATime:  time.Unix(sys.Atim.Unix()),
+		ATime:  time.Unix(sys.Atimespec.Unix()),
 		MTime:  fi.ModTime(),
 		Length: uint64(fi.Size()),
 		Name:   fi.Name(),

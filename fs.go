@@ -29,12 +29,12 @@ type FileSystem interface {
 
 // Attachment is a file hierarchy provided by an FS.
 //
-// All paths passed to the methods of this system are relative to the
-// aname used to attach the attachment, use forward slashes as
-// separators, and have been cleaned using path.Clean(). For example,
-// if the client attaches using the aname "/example" and then tries to
-// open the file located at "some/other/example", the Open() method
-// will be called with the path "/example/some/other/example".
+// All paths passed to the methods of this system begin with the aname
+// used to attach the attachment, use forward slashes as separators,
+// and have been cleaned using path.Clean(). For example, if the
+// client attaches using the aname "/example" and then tries to open
+// the file located at "some/other/example", the Open() method will be
+// called with the path "/example/some/other/example".
 type Attachment interface {
 	// Stat returns a DirEntry giving info about the file or directory
 	// at the given path. If an error is returned, the text of the error
