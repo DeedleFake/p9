@@ -111,7 +111,7 @@ func handleRead(rw http.ResponseWriter, req *http.Request) {
 
 	rw.Header().Set(
 		"Content-Disposition",
-		fmt.Sprintf("attachment; filename=%q", filepath.Base(q.Get("path"))),
+		fmt.Sprintf("filename=%q", filepath.Base(q.Get("path"))),
 	)
 	_, err = io.Copy(rw, f)
 	if err != nil {
