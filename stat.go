@@ -1,13 +1,159 @@
 package p9
 
-import "time"
+import (
+	"os"
+	"time"
+	"unsafe"
+)
+
+// FileMode stores permission and type information about a file or
+// directory.
+type FileMode uint32
+
+// FileMode type bitmasks.
+const (
+	ModeDir FileMode = 1 << (31 - iota)
+	ModeAppend
+	ModeExclusive
+	ModeMount
+	ModeAuth
+	ModeTemporary
+	ModeSymlink
+	_
+	ModeDevice
+	ModeNamedPipe
+	ModeSocket
+	ModeSetuid
+	ModeSetgid
+)
+
+// ModeFromOS converts an os.FileMode to a FileMode.
+func ModeFromOS(m os.FileMode) FileMode {
+	r := FileMode(m.Perm())
+
+	if m&os.ModeDir != 0 {
+		r |= ModeDir
+	}
+	if m&os.ModeAppend != 0 {
+		r |= ModeAppend
+	}
+	if m&os.ModeExclusive != 0 {
+		r |= ModeExclusive
+	}
+	if m&os.ModeTemporary != 0 {
+		r |= ModeTemporary
+	}
+	if m&os.ModeSymlink != 0 {
+		r |= ModeSymlink
+	}
+	if m&os.ModeDevice != 0 {
+		r |= ModeDevice
+	}
+	if m&os.ModeNamedPipe != 0 {
+		r |= ModeNamedPipe
+	}
+	if m&os.ModeSocket != 0 {
+		r |= ModeSocket
+	}
+	if m&os.ModeSetuid != 0 {
+		r |= ModeSetuid
+	}
+	if m&os.ModeSetgid != 0 {
+		r |= ModeSetgid
+	}
+
+	return r
+}
+
+// OS converts a FileMode to an os.FileMode.
+func (m FileMode) OS() os.FileMode {
+	r := os.FileMode(m.Perm())
+
+	if m&ModeDir != 0 {
+		r |= os.ModeDir
+	}
+	if m&ModeAppend != 0 {
+		r |= os.ModeAppend
+	}
+	if m&ModeExclusive != 0 {
+		r |= os.ModeExclusive
+	}
+	if m&ModeTemporary != 0 {
+		r |= os.ModeTemporary
+	}
+	if m&ModeSymlink != 0 {
+		r |= os.ModeSymlink
+	}
+	if m&ModeDevice != 0 {
+		r |= os.ModeDevice
+	}
+	if m&ModeNamedPipe != 0 {
+		r |= os.ModeNamedPipe
+	}
+	if m&ModeSocket != 0 {
+		r |= os.ModeSocket
+	}
+	if m&ModeSetuid != 0 {
+		r |= os.ModeSetuid
+	}
+	if m&ModeSetgid != 0 {
+		r |= os.ModeSetgid
+	}
+
+	return r
+}
+
+// QIDType converts a FileMode to a QIDType. Note that this will
+// result in a loss of information, as the information stored by
+// QIDType is a direct subset of that handled by FileMode.
+func (m FileMode) QIDType() QIDType {
+	return QIDType(m >> 24)
+}
+
+// Type returns a FileMode containing only the type bits of m.
+func (m FileMode) Type() FileMode {
+	return m & 0xFFFF0000
+}
+
+// Perm returns a FileMode containing only the permission bits of m.
+func (m FileMode) Perm() FileMode {
+	return m & 0777
+}
+
+func (m FileMode) String() string { // nolint
+	buf := []byte("----------")
+
+	const types = "dalMATL!DpSug"
+	for i := range types {
+		if m&(1<<uint(31-i)) != 0 {
+			buf[0] = types[i]
+		}
+	}
+
+	const perms = "rwx"
+	for i := 1; i < len(buf); i++ {
+		if m&(1<<uint32(len(buf)-1-i)) != 0 {
+			buf[i] = perms[(i-1)%len(perms)]
+		}
+	}
+
+	return *(*string)(unsafe.Pointer(&buf))
+}
+
+func (m FileMode) encode(e *encoder) {
+	e.Encode(uint32(m))
+}
+
+func (m *FileMode) decode(d *decoder) {
+	d.Decode((*uint32)(m))
+}
 
 // Stat is a stat value.
 type Stat struct {
 	Type   uint16
 	Dev    uint32
 	QID    QID
-	Mode   uint32 // TODO: Make a Mode type?
+	Mode   FileMode
 	ATime  time.Time
 	MTime  time.Time
 	Length uint64
@@ -19,7 +165,6 @@ type Stat struct {
 
 func (s Stat) dirEntry() DirEntry {
 	return DirEntry{
-		Type:   s.QID.Type,
 		Mode:   s.Mode,
 		ATime:  s.ATime,
 		MTime:  s.MTime,
@@ -79,12 +224,8 @@ func (s *Stat) decode(d *decoder) {
 
 // DirEntry is a smaller version of Stat that eliminates unnecessary
 // or duplicate fields.
-//
-// Note that the top 8-bits of the Mode field are overwritten during
-// transmission using the Type field.
 type DirEntry struct {
-	Type   QIDType
-	Mode   uint32
+	Mode   FileMode
 	ATime  time.Time
 	MTime  time.Time
 	Length uint64
@@ -96,11 +237,12 @@ type DirEntry struct {
 
 func (d DirEntry) stat(path uint64) Stat {
 	return Stat{
+		Type: uint16(d.Mode >> 16),
 		QID: QID{
-			Type: d.Type,
+			Type: QIDType(d.Mode >> 24),
 			Path: path,
 		},
-		Mode:   d.Mode | (uint32(d.Type) << 24),
+		Mode:   d.Mode,
 		ATime:  d.ATime,
 		MTime:  d.MTime,
 		Length: d.Length,
@@ -118,11 +260,7 @@ type StatChanges struct {
 	DirEntry
 }
 
-func (c StatChanges) Type() (QIDType, bool) { // nolint
-	return c.DirEntry.Type, c.DirEntry.Type != 0xFF
-}
-
-func (c StatChanges) Mode() (uint32, bool) { // nolint
+func (c StatChanges) Mode() (FileMode, bool) { // nolint
 	return c.DirEntry.Mode, c.DirEntry.Mode != 0xFFFFFFFF
 }
 

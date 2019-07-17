@@ -18,17 +18,24 @@ const (
 	NoFID uint32 = math.MaxUint32
 )
 
-// File open modes and flags.
+// File open modes and flags. Note that not all flags are supported
+// where you might expect them to be. If you get an error saying that
+// a flag won't fit into uint8, the flag you're trying to use probably
+// isn't supported there.
 const (
 	OREAD uint8 = iota
 	OWRITE
 	ORDWR
 	OEXEC
 
-	OTRUNC  uint8 = 0x10
-	ORCLOSE uint8 = 0x40
-
-	DMDIR uint32 = 0x80000000
+	OTRUNC = 1 << (iota + 1)
+	OCEXEC
+	ORCLOSE
+	ODIRECT
+	ONONBLOCK
+	OEXCL
+	OLOCK
+	OAPPEND
 )
 
 // QID represents a QID value.
@@ -55,15 +62,20 @@ type QIDType uint8
 
 // Valid types of files.
 const (
-	QTFile    QIDType = 0
-	QTSymlink QIDType = 1 << iota
-	QTTmp
-	QTAuth
-	QTMount
-	QTExcl
+	QTFile QIDType = 0
+	QTDir  QIDType = 1 << (8 - iota)
 	QTAppend
-	QTDir
+	QTExcl
+	QTMount
+	QTAuth
+	QTTmp
+	QTSymlink
 )
+
+// FileMode converts the QIDType to a FileMode.
+func (t QIDType) FileMode() FileMode {
+	return FileMode(t) << 24
+}
 
 func (t QIDType) encode(e *encoder) {
 	e.Encode(uint8(t))
@@ -72,3 +84,8 @@ func (t QIDType) encode(e *encoder) {
 func (t *QIDType) decode(d *decoder) {
 	d.Decode((*uint8)(t))
 }
+
+// Other constants.
+const (
+	IOHeaderSize = 24
+)

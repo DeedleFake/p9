@@ -140,7 +140,7 @@ const (
 	RauthType
 	TattachType
 	RattachType
-	terrorType // Not used.
+	_ // Terror isn't used, but slot is skipped over.
 	RerrorType
 	TflushType
 	RflushType
@@ -419,8 +419,8 @@ func (msg *Ropen) decode(d *decoder) {
 type Tcreate struct { // nolint
 	FID  uint32
 	Name string
-	Perm uint32 // TODO: Make a Perm type?
-	Mode uint8  // TODO: Make a Mode type?
+	Perm FileMode
+	Mode uint8 // TODO: Make a Mode type?
 }
 
 func (msg Tcreate) Type() MessageType { // nolint

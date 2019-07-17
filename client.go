@@ -75,6 +75,10 @@ func (c *Client) reader(ctx context.Context) {
 	for {
 		err := c.c.SetReadDeadline(time.Now().Add(10 * time.Second))
 		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+
 			log.Printf("Failed to set conn deadline: %v", err)
 			return
 		}

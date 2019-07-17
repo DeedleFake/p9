@@ -1,6 +1,7 @@
 package p9
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -167,7 +168,7 @@ func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 
 // Create creates, with the given permissions, and opens, with the
 // given mode, a new file at p relative to the current file.
-func (file *Remote) Create(p string, perm uint32, mode uint8) (*Remote, error) {
+func (file *Remote) Create(p string, perm FileMode, mode uint8) (*Remote, error) {
 	dir, name := path.Split(p)
 	next, err := file.walk(path.Clean(dir))
 	if err != nil {
@@ -266,7 +267,7 @@ func (file *Remote) maxBufSize() int {
 	file.client.m.RLock()
 	defer file.client.m.RUnlock()
 
-	return int(file.client.msize - uint32(4+1+2+4))
+	return int(file.client.msize - IOHeaderSize)
 }
 
 func (file *Remote) readPart(buf []byte, off int64) (int, error) {
@@ -279,11 +280,11 @@ func (file *Remote) readPart(buf []byte, off int64) (int, error) {
 		return 0, err
 	}
 	read := rsp.(*Rread)
+	if len(read.Data) == 0 {
+		return 0, io.EOF
+	}
 
 	n := copy(buf, read.Data)
-	if n < len(buf) {
-		return n, io.EOF
-	}
 	return n, nil
 }
 
@@ -417,5 +418,5 @@ func (file *Remote) Stat(p string) (DirEntry, error) {
 // Note that to read this list again, the file must first be seeked to
 // the beginning.
 func (file *Remote) Readdir() ([]DirEntry, error) {
-	return ReadDir(file)
+	return ReadDir(bufio.NewReaderSize(file, file.maxBufSize()))
 }

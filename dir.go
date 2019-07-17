@@ -36,8 +36,8 @@ func (d Dir) WriteStat(p string, changes StatChanges) error { // nolint
 
 	mode, ok := changes.Mode()
 	if ok {
-		perm := os.FileMode(mode).Perm()
-		err := os.Chmod(p, perm)
+		perm := mode.Perm()
+		err := os.Chmod(p, os.FileMode(perm))
 		if err != nil {
 			return err
 		}
@@ -93,12 +93,11 @@ func (d Dir) Open(p string, mode uint8) (File, error) { // nolint
 	}, err
 }
 
-func (d Dir) Create(p string, perm uint32, mode uint8) (File, error) { // nolint
+func (d Dir) Create(p string, perm FileMode, mode uint8) (File, error) { // nolint
 	p = d.path(p)
-	osperm := os.FileMode(perm).Perm()
 
-	if perm&DMDIR != 0 {
-		err := os.Mkdir(p, osperm)
+	if perm&ModeDir != 0 {
+		err := os.Mkdir(p, os.FileMode(perm.Perm()))
 		if err != nil {
 			return nil, err
 		}
@@ -106,7 +105,7 @@ func (d Dir) Create(p string, perm uint32, mode uint8) (File, error) { // nolint
 
 	flag := toOSFlags(mode)
 
-	file, err := os.OpenFile(p, flag|os.O_CREATE, osperm)
+	file, err := os.OpenFile(p, flag|os.O_CREATE, os.FileMode(perm.Perm()))
 	return &dirFile{
 		File: file,
 	}, err
@@ -131,6 +130,46 @@ func (f *dirFile) Readdir() ([]DirEntry, error) { // nolint
 		entries = append(entries, infoToEntry(info))
 	}
 	return entries, nil
+}
+
+// ReadOnlyFS wraps a filesystem implementation with an implementation
+// that rejects any attempts to cause changes to the filesystem with
+// the exception of writing to an authfile.
+func ReadOnlyFS(fs FileSystem) FileSystem {
+	return &readOnlyFS{fs}
+}
+
+type readOnlyFS struct {
+	FileSystem
+}
+
+func (ro readOnlyFS) Attach(afile File, user, aname string) (Attachment, error) {
+	a, err := ro.FileSystem.Attach(afile, user, aname)
+	return &readOnlyAttachment{a}, err
+}
+
+type readOnlyAttachment struct {
+	Attachment
+}
+
+func (ro readOnlyAttachment) WriteStat(path string, changes StatChanges) error {
+	return errors.New("read-only filesystem")
+}
+
+func (ro readOnlyAttachment) Open(path string, mode uint8) (File, error) {
+	if mode&(OWRITE|ORDWR|OEXEC|OTRUNC|OCEXEC|ORCLOSE) != 0 {
+		return nil, errors.New("read-only filesystem")
+	}
+
+	return ro.Attachment.Open(path, mode)
+}
+
+func (ro readOnlyAttachment) Create(path string, perm FileMode, mode uint8) (File, error) {
+	return nil, errors.New("read-only filesystem")
+}
+
+func (ro readOnlyAttachment) Remove(path string) error {
+	return errors.New("read-only filesystem")
 }
 
 // AuthFS allows simple wrapping and overwriting of the Auth() and
@@ -162,4 +201,27 @@ func (a AuthFS) Attach(afile File, user, aname string) (Attachment, error) { // 
 		return nil, err
 	}
 	return a.FileSystem.Attach(file, user, aname)
+}
+
+func toOSFlags(mode uint8) (flag int) {
+	if mode&OREAD != 0 {
+		flag |= os.O_RDONLY
+	}
+	if mode&OWRITE != 0 {
+		flag |= os.O_WRONLY
+	}
+	if mode&ORDWR != 0 {
+		flag |= os.O_RDWR
+	}
+	if mode&OTRUNC != 0 {
+		flag |= os.O_TRUNC
+	}
+	//if mode&OEXCL != 0 {
+	//	flag |= os.O_EXCL
+	//}
+	//if mode&OAPPEND != 0 {
+	//	flag |= os.O_APPEND
+	//}
+
+	return flag
 }
