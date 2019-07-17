@@ -18,15 +18,24 @@ const (
 	NoFID uint32 = math.MaxUint32
 )
 
-// File open modes and flags.
+// File open modes and flags. Note that not all flags are supported
+// where you might expect them to be. If you get an error saying that
+// a flag won't fit into uint8, the flag you're trying to use probably
+// isn't supported there.
 const (
 	OREAD uint8 = iota
 	OWRITE
 	ORDWR
 	OEXEC
 
-	OTRUNC  uint8 = 0x10
-	ORCLOSE uint8 = 0x40
+	OTRUNC = 1 << (iota + 1)
+	OCEXEC
+	ORCLOSE
+	ODIRECT
+	ONONBLOCK
+	OEXCL
+	OLOCK
+	OAPPEND
 )
 
 // QID represents a QID value.

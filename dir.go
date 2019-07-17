@@ -211,6 +211,12 @@ func toOSFlags(mode uint8) (flag int) {
 	if mode&OTRUNC != 0 {
 		flag |= os.O_TRUNC
 	}
+	//if mode&OEXCL != 0 {
+	//	flag |= os.O_EXCL
+	//}
+	//if mode&OAPPEND != 0 {
+	//	flag |= os.O_APPEND
+	//}
 
 	return flag
 }
