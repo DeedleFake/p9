@@ -132,6 +132,41 @@ func (f *dirFile) Readdir() ([]DirEntry, error) { // nolint
 	return entries, nil
 }
 
+// ReadOnlyFS wraps a filesystem implementation with an implementation
+// that rejects any attempts to cause changes to the filesystem.
+type ReadOnlyFS struct {
+	FileSystem
+}
+
+func (ro ReadOnlyFS) Attach(afile File, user, aname string) (Attachment, error) {
+	a, err := ro.FileSystem.Attach(afile, user, aname)
+	return &readOnlyAttachment{a}, err
+}
+
+type readOnlyAttachment struct {
+	Attachment
+}
+
+func (ro readOnlyAttachment) WriteStat(path string, changes StatChanges) error {
+	return errors.New("read-only filesystem")
+}
+
+func (ro readOnlyAttachment) Open(path string, mode uint8) (File, error) {
+	if mode&(OWRITE|ORDWR|OEXEC|OTRUNC|ORCLOSE) != 0 {
+		return nil, errors.New("read-only filesystem")
+	}
+
+	return ro.Attachment.Open(path, mode)
+}
+
+func (ro readOnlyAttachment) Create(path string, perm FileMode, mode uint8) (File, error) {
+	return nil, errors.New("read-only filesystem")
+}
+
+func (ro readOnlyAttachment) Remove(path string) error {
+	return errors.New("read-only filesystem")
+}
+
 // AuthFS allows simple wrapping and overwriting of the Auth() and
 // Attach() methods of an existing FileSystem implementation, allowing
 // the user to add authentication support to a FileSystem that does
