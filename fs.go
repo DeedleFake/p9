@@ -75,6 +75,15 @@ type IOUnitFS interface {
 	IOUnit() uint32
 }
 
+// QIDFS is implemented by Attachments that want to deal with QIDs
+// manually. A QID represents a unique identifier for a given file. In
+// particular, the Path field must be unique for every path, even if
+// the file at that path has been deleted and replaced with a
+// completely new file.
+type QIDFS interface {
+	GetQID(p string) (QID, error)
+}
+
 // File is the interface implemented by files being dealt with by a
 // FileSystem.
 //
@@ -163,6 +172,10 @@ func (h *fsHandler) getNextPath() uint64 {
 }
 
 func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
+	if q, ok := attach.(QIDFS); ok {
+		return q.GetQID(p)
+	}
+
 	stat, err := attach.Stat(p)
 	if err != nil {
 		return QID{}, err
