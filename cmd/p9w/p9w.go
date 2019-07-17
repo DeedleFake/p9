@@ -60,6 +60,29 @@ func AttachHandler(h http.Handler) http.Handler {
 	})
 }
 
+func DispositionHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		defer h.ServeHTTP(rw, req)
+
+		q := req.URL.Query()
+		if q.Get("path") == "" {
+			if q.Get("addr") == "" {
+				return
+			}
+
+			rw.Header().Set(
+				"Content-Disposition",
+				fmt.Sprintf("filename=%q", q.Get("addr")),
+			)
+		}
+
+		rw.Header().Set(
+			"Content-Disposition",
+			fmt.Sprintf("filename=%q", filepath.Base(q.Get("path"))),
+		)
+	})
+}
+
 func handleLS(rw http.ResponseWriter, req *http.Request) {
 	rw.Header().Set("Content-Type", "application/json")
 	e := json.NewEncoder(rw)
@@ -109,10 +132,6 @@ func handleRead(rw http.ResponseWriter, req *http.Request) {
 	}
 	defer f.Close()
 
-	rw.Header().Set(
-		"Content-Disposition",
-		fmt.Sprintf("filename=%q", filepath.Base(q.Get("path"))),
-	)
 	_, err = io.Copy(rw, f)
 	if err != nil {
 		Error(rw, err, http.StatusInternalServerError)
@@ -124,8 +143,12 @@ func main() {
 	addr := flag.String("addr", ":8080", "Address to listen on.")
 	flag.Parse()
 
-	http.Handle("/ls", AttachHandler(http.HandlerFunc(handleLS)))
-	http.Handle("/read", AttachHandler(http.HandlerFunc(handleRead)))
+	handlers := func(h http.Handler) http.Handler {
+		return DispositionHandler(AttachHandler(h))
+	}
+
+	http.Handle("/ls", handlers(http.HandlerFunc(handleLS)))
+	http.Handle("/read", handlers(http.HandlerFunc(handleRead)))
 
 	log.Println("Starting server at %v", *addr)
 	log.Fatalln(http.ListenAndServe(*addr, nil))
