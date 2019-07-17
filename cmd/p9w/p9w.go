@@ -139,6 +139,28 @@ func handleRead(rw http.ResponseWriter, req *http.Request) {
 	}
 }
 
+func handleMain(rw http.ResponseWriter, req *http.Request) {
+	io.WriteString(rw, `<html>
+	<body>
+		<h3>Global Parameters</h3>
+		<ul>
+			<li>addr</li>
+			<li>user</li>
+			<li>aname</li>
+		</ul>
+
+		<h3>Endpoints</h3>
+		<dl>
+			<dt><a href='/ls'>ls</a></dt>
+			<dd>List files. Parameters: path</dd>
+
+			<dt><a href='/read'>read</a></dt>
+			<dd>Read a file. Parameters: path</dd>
+		</dl>
+	</body>
+</html>`)
+}
+
 func main() {
 	addr := flag.String("addr", ":8080", "Address to listen on.")
 	flag.Parse()
@@ -149,7 +171,8 @@ func main() {
 
 	http.Handle("/ls", handlers(http.HandlerFunc(handleLS)))
 	http.Handle("/read", handlers(http.HandlerFunc(handleRead)))
+	http.HandleFunc("/", handleMain)
 
-	log.Println("Starting server at %v", *addr)
+	log.Printf("Starting server at %q", *addr)
 	log.Fatalln(http.ListenAndServe(*addr, nil))
 }
