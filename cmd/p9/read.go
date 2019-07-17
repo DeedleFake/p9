@@ -24,23 +24,32 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 	fset.Usage = func() {
 		fmt.Fprintf(fset.Output(), "%v reads the raw contents of a file and prints them to stdout.\n", cmd.Name())
 		fmt.Fprintf(fset.Output(), "\n")
-		fmt.Fprintf(fset.Output(), "Usage: %v <path>\n", cmd.Name())
+		fmt.Fprintf(fset.Output(), "Usage: %v <path...>\n", cmd.Name())
 	}
 	err := fset.Parse(args[1:])
 	if err != nil {
 		return fmt.Errorf("Failed to parse flags: %v", err)
 	}
 
-	return attach(options, func(a *p9.Remote) error {
-		f, err := a.Open(fset.Arg(0), p9.OREAD)
-		if err != nil {
-			return fmt.Errorf("Failed to open %q: %v", fset.Arg(0), err)
-		}
-		defer f.Close()
+	args = fset.Args()
+	if len(args) == 0 {
+		fmt.Fprintf(fset.Output(), "Error: Need at least one path.\n")
+		fmt.Fprintf(fset.Output(), "\n")
+		return flag.ErrHelp
+	}
 
-		_, err = io.Copy(os.Stdout, f)
-		if err != nil {
-			return fmt.Errorf("Failed to read: %v", err)
+	return attach(options, func(a *p9.Remote) error {
+		for _, arg := range args {
+			f, err := a.Open(arg, p9.OREAD)
+			if err != nil {
+				return fmt.Errorf("Failed to open %q: %v", arg, err)
+			}
+			defer f.Close()
+
+			_, err = io.Copy(os.Stdout, f)
+			if err != nil {
+				return fmt.Errorf("Failed to read: %v", err)
+			}
 		}
 
 		return nil
