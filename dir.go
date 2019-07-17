@@ -133,12 +133,17 @@ func (f *dirFile) Readdir() ([]DirEntry, error) { // nolint
 }
 
 // ReadOnlyFS wraps a filesystem implementation with an implementation
-// that rejects any attempts to cause changes to the filesystem.
-type ReadOnlyFS struct {
+// that rejects any attempts to cause changes to the filesystem with
+// the exception of writing to an authfile.
+func ReadOnlyFS(fs FileSystem) FileSystem {
+	return &readOnlyFS{fs}
+}
+
+type readOnlyFS struct {
 	FileSystem
 }
 
-func (ro ReadOnlyFS) Attach(afile File, user, aname string) (Attachment, error) {
+func (ro readOnlyFS) Attach(afile File, user, aname string) (Attachment, error) {
 	a, err := ro.FileSystem.Attach(afile, user, aname)
 	return &readOnlyAttachment{a}, err
 }
@@ -152,7 +157,7 @@ func (ro readOnlyAttachment) WriteStat(path string, changes StatChanges) error {
 }
 
 func (ro readOnlyAttachment) Open(path string, mode uint8) (File, error) {
-	if mode&(OWRITE|ORDWR|OEXEC|OTRUNC|ORCLOSE) != 0 {
+	if mode&(OWRITE|ORDWR|OEXEC|OTRUNC|OCEXEC|ORCLOSE) != 0 {
 		return nil, errors.New("read-only filesystem")
 	}
 
