@@ -22,9 +22,9 @@ func (cmd *readCmd) Desc() string {
 func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 	fset := flag.NewFlagSet(cmd.Name(), flag.ExitOnError)
 	fset.Usage = func() {
-		fmt.Fprintf(os.Stderr, "%v reads the raw contents of a file and prints them to stdout.\n", cmd.Name())
-		fmt.Fprintf(os.Stderr, "\n")
-		fmt.Fprintf(os.Stderr, "Usage: %v <path>\n", cmd.Name())
+		fmt.Fprintf(fset.Output(), "%v reads the raw contents of a file and prints them to stdout.\n", cmd.Name())
+		fmt.Fprintf(fset.Output(), "\n")
+		fmt.Fprintf(fset.Output(), "Usage: %v <path>\n", cmd.Name())
 	}
 	err := fset.Parse(args[1:])
 	if err != nil {
