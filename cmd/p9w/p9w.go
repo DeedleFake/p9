@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"path/filepath"
+	"strings"
 
 	"github.com/DeedleFake/p9"
 )
@@ -16,6 +18,7 @@ import (
 type ctxKey string
 
 const (
+	AddrKey   ctxKey = "addr"
 	ClientKey ctxKey = "client"
 	AttachKey ctxKey = "attach"
 )
@@ -28,23 +31,39 @@ func Error(rw http.ResponseWriter, err error, status int) {
 
 	rw.WriteHeader(status)
 
-	e.Encode(struct {
-		Err error
+	err = e.Encode(struct {
+		Err string `json:"error"`
 	}{
-		Err: err,
+		Err: err.Error(),
 	})
+	log.Printf("Error encoding error: %v", err)
 }
 
 func AttachHandler(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		q := req.URL.Query()
 
-		c, err := p9.Dial("tcp", q.Get("addr"))
+		addr := q.Get("addr")
+		if addr == "" {
+			Error(rw, errors.New("addr not specified"), http.StatusBadRequest)
+			return
+		}
+		if parts := strings.SplitN(addr, ":", 2); len(parts) < 2 {
+			addr += ":564"
+		}
+
+		c, err := p9.Dial("tcp", addr)
 		if err != nil {
 			Error(rw, err, http.StatusBadRequest)
 			return
 		}
 		defer c.Close()
+
+		_, err = c.Handshake(4096)
+		if err != nil {
+			Error(rw, err, http.StatusInternalServerError)
+			return
+		}
 
 		a, err := c.Attach(nil, q.Get("user"), q.Get("aname"))
 		if err != nil {
@@ -54,8 +73,9 @@ func AttachHandler(h http.Handler) http.Handler {
 		defer a.Close()
 
 		ctx := req.Context()
-		ctx = context.WithValue(ctx, AttachKey, a)
+		ctx = context.WithValue(ctx, AddrKey, addr)
 		ctx = context.WithValue(ctx, ClientKey, c)
+		ctx = context.WithValue(ctx, AttachKey, a)
 		h.ServeHTTP(rw, req.WithContext(ctx))
 	})
 }
@@ -84,13 +104,14 @@ func DispositionHandler(h http.Handler) http.Handler {
 }
 
 func handleLS(rw http.ResponseWriter, req *http.Request) {
+	addr := req.Context().Value(AddrKey).(string)
+	a := req.Context().Value(AttachKey).(*p9.Remote)
+
 	rw.Header().Set("Content-Type", "application/json")
 	e := json.NewEncoder(rw)
 
 	q := req.URL.Query()
-	log.Printf("ls %v %v", q.Get("addr"), q.Get("path"))
-
-	a := req.Context().Value(AttachKey).(*p9.Remote)
+	log.Printf("ls %v %v", addr, q.Get("path"))
 
 	fi, err := a.Stat(q.Get("path"))
 	if err != nil {
@@ -99,7 +120,10 @@ func handleLS(rw http.ResponseWriter, req *http.Request) {
 	}
 
 	if fi.Mode&p9.ModeDir == 0 {
-		e.Encode(fi)
+		err := e.Encode(fi)
+		if err != nil {
+			log.Printf("Error encoding: %v", err)
+		}
 		return
 	}
 
@@ -116,14 +140,18 @@ func handleLS(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	e.Encode(entries)
+	err = e.Encode(entries)
+	if err != nil {
+		log.Printf("Error encoding: %v", err)
+	}
 }
 
 func handleRead(rw http.ResponseWriter, req *http.Request) {
-	q := req.URL.Query()
-	log.Printf("read %v %v", q.Get("addr"), q.Get("path"))
-
+	addr := req.Context().Value(AddrKey).(string)
 	a := req.Context().Value(AttachKey).(*p9.Remote)
+
+	q := req.URL.Query()
+	log.Printf("read %v %v", addr, q.Get("path"))
 
 	f, err := a.Open(q.Get("path"), p9.OREAD)
 	if err != nil {
@@ -134,13 +162,13 @@ func handleRead(rw http.ResponseWriter, req *http.Request) {
 
 	_, err = io.Copy(rw, f)
 	if err != nil {
-		Error(rw, err, http.StatusInternalServerError)
+		log.Printf("Error sending data: %v", err)
 		return
 	}
 }
 
 func handleMain(rw http.ResponseWriter, req *http.Request) {
-	io.WriteString(rw, `<html>
+	_, err := io.WriteString(rw, `<html>
 	<body>
 		<h3>Global Parameters</h3>
 		<ul>
@@ -159,6 +187,9 @@ func handleMain(rw http.ResponseWriter, req *http.Request) {
 		</dl>
 	</body>
 </html>`)
+	if err != nil {
+		log.Printf("Error writing string: %v", err)
+	}
 }
 
 func main() {
