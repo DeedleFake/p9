@@ -25,6 +25,9 @@ func (cmd *writeCmd) Run(options GlobalOptions, args []string) error {
 		fmt.Fprintf(fset.Output(), "%v copies the entirety of stdin into a file.\n", cmd.Name())
 		fmt.Fprintf(fset.Output(), "\n")
 		fmt.Fprintf(fset.Output(), "Usage: %v [options] <path>\n", cmd.Name())
+		fmt.Fprintf(fset.Output(), "\n")
+		fmt.Fprintf(fset.Output(), "Options:\n")
+		fset.PrintDefaults()
 	}
 	app := fset.Bool("a", false, "Append to the file instead of overwriting it.")
 	create := fset.Uint(
