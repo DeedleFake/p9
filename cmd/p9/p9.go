@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"runtime/debug"
 	"strings"
 
 	"github.com/DeedleFake/p9"
@@ -20,6 +22,7 @@ type Command interface {
 
 var commands = []Command{
 	&helpCmd{},
+	&versionCmd{},
 }
 
 func GetCommand(name string) Command {
@@ -73,6 +76,29 @@ func (helpCmd) Run(options GlobalOptions, args []string) (err error) {
 	}
 
 	return err
+}
+
+type versionCmd struct{}
+
+func (versionCmd) Name() string {
+	return "version"
+}
+
+func (versionCmd) Desc() string {
+	return "Prints version information."
+}
+
+func (versionCmd) Run(options GlobalOptions, args []string) error {
+	v := "failed to read build info"
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		v = bi.Main.Version
+	}
+
+	fmt.Printf("Go: %v\n", runtime.Version())
+	fmt.Printf("%v: %v\n", filepath.Base(os.Args[0]), v)
+	fmt.Printf("9P: %v\n", p9.Version)
+
+	return nil
 }
 
 func attach(options GlobalOptions, f func(*p9.Remote) error) error {
