@@ -36,8 +36,7 @@ func (d Dir) WriteStat(p string, changes StatChanges) error { // nolint
 
 	mode, ok := changes.Mode()
 	if ok {
-		perm := mode.Perm()
-		err := os.Chmod(p, os.FileMode(perm))
+		err := os.Chmod(p, mode.OS())
 		if err != nil {
 			return err
 		}

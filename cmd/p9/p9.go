@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
@@ -166,6 +167,16 @@ type GlobalOptions struct {
 	AName   string
 }
 
+func getUsername() string {
+	u, err := user.Current()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get username: %v\n", err)
+		return ""
+	}
+
+	return u.Username
+}
+
 func main() {
 	var options GlobalOptions
 	flag.StringVar(
@@ -180,7 +191,7 @@ func main() {
 		2048,
 		"The message size to request from the server, or the size to report to a client.",
 	)
-	flag.StringVar(&options.UName, "uname", "root", "The user name to use for attaching.")
+	flag.StringVar(&options.UName, "uname", getUsername(), "The user name to use for attaching. Default is the current user.")
 	flag.StringVar(&options.AName, "aname", "", "The filesystem root to attach to.")
 	help := flag.Bool("help", false, "Show this help.")
 	flag.Parse()
