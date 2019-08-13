@@ -3,6 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
+	"os"
+	"os/signal"
 
 	"github.com/DeedleFake/p9"
 )
@@ -45,16 +48,33 @@ func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 		fs = p9.ReadOnlyFS(fs)
 	}
 
-	err = p9.ListenAndServe(
-		options.Network,
-		options.Address,
-		p9.FSConnHandler(fs, uint32(options.MSize)),
-	)
+	lis, err := net.Listen(options.Network, options.Address)
 	if err != nil {
-		return fmt.Errorf("Failed to start server: %v", err)
+		return fmt.Errorf("Failed to listen: %v", err)
 	}
+	defer lis.Close()
 
-	return nil
+	errC := make(chan error, 1)
+	go func() {
+		err = p9.Serve(
+			lis,
+			p9.FSConnHandler(fs, uint32(options.MSize)),
+		)
+		if err != nil {
+			errC <- fmt.Errorf("Failed to start server: %v", err)
+		}
+	}()
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	defer signal.Stop(c)
+
+	select {
+	case err := <-errC:
+		return err
+	case <-c:
+		return nil
+	}
 }
 
 func init() {
