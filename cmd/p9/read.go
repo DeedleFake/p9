@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 
 	"github.com/DeedleFake/p9"
 )
@@ -46,9 +47,11 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 	}
 
 	writeFile := func(arg string, f *p9.Remote) error {
+		defer f.Close()
+
 		_, err = io.Copy(os.Stdout, f)
 		if err != nil {
-			return fmt.Errorf("read: %w", err)
+			return fmt.Errorf("read %q: %w", arg, err)
 		}
 
 		return nil
@@ -59,27 +62,52 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 		defer out.Close()
 
 		writeFile = func(arg string, f *p9.Remote) error {
+			defer f.Close()
+
 			fi, err := f.Stat("")
 			if err != nil {
-				return fmt.Errorf("stat: %w", err)
+				return fmt.Errorf("stat %q: %w", arg, err)
 			}
 
-			err = out.WriteHeader(&tar.Header{
-				Name:       arg,
-				Size:       int64(fi.Length),
-				Mode:       int64(fi.Mode.OS()),
-				Uname:      fi.UID,
-				Gname:      fi.GID,
-				ModTime:    fi.MTime,
-				AccessTime: fi.ATime,
-			})
-			if err != nil {
-				return fmt.Errorf("write header: %w", err)
-			}
+			switch {
+			case fi.Mode&(p9.ModeAppend|p9.ModeExclusive|p9.ModeMount|p9.ModeAuth) != 0:
 
-			_, err = io.Copy(out, f)
-			if err != nil {
-				return fmt.Errorf("read: %w", err)
+			case fi.Mode&p9.ModeDir != 0:
+				children, err := f.Readdir()
+				if err != nil {
+					return fmt.Errorf("read dir %q: %w", arg, err)
+				}
+
+				for _, c := range children {
+					cf, err := f.Open(c.Name, p9.OREAD)
+					if err != nil {
+						return fmt.Errorf("open %q: %w", path.Join(arg, c.Name), err)
+					}
+
+					err = writeFile(path.Join(arg, c.Name), cf)
+					if err != nil {
+						return err
+					}
+				}
+
+			default:
+				err = out.WriteHeader(&tar.Header{
+					Name:       arg,
+					Size:       int64(fi.Length),
+					Mode:       int64(fi.Mode.OS()),
+					Uname:      fi.UID,
+					Gname:      fi.GID,
+					ModTime:    fi.MTime,
+					AccessTime: fi.ATime,
+				})
+				if err != nil {
+					return fmt.Errorf("write header for %q: %w", arg, err)
+				}
+
+				_, err = io.Copy(out, f)
+				if err != nil {
+					return fmt.Errorf("read %q: %w", arg, err)
+				}
 			}
 
 			return nil
@@ -88,20 +116,12 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 
 	return attach(options, func(a *p9.Remote) error {
 		for _, arg := range args {
-			err := func(arg string) error {
-				f, err := a.Open(arg, p9.OREAD)
-				if err != nil {
-					return fmt.Errorf("Failed to open %q: %w", arg, err)
-				}
-				defer f.Close()
+			f, err := a.Open(arg, p9.OREAD)
+			if err != nil {
+				return fmt.Errorf("open %q: %w", arg, err)
+			}
 
-				err = writeFile(arg, f)
-				if err != nil {
-					return fmt.Errorf("Failed to read %q: %w", arg, err)
-				}
-
-				return nil
-			}(arg)
+			err = writeFile(arg, f)
 			if err != nil {
 				return err
 			}
