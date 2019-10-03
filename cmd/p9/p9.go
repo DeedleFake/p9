@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -105,18 +106,18 @@ func (versionCmd) Run(options GlobalOptions, args []string) error {
 func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 	c, err := p9.Dial(options.Network, options.Address)
 	if err != nil {
-		return fmt.Errorf("Failed to dial address: %v", err)
+		return fmt.Errorf("dial %q, %q: %w", options.Network, options.Address, err)
 	}
 	defer c.Close()
 
 	_, err = c.Handshake(uint32(options.MSize))
 	if err != nil {
-		return fmt.Errorf("Handshake failed: %v", err)
+		return fmt.Errorf("handshake: %w", err)
 	}
 
 	a, err := c.Attach(nil, options.UName, options.AName)
 	if err != nil {
-		return fmt.Errorf("Failed to attach: %v", err)
+		return fmt.Errorf("attach %q: %w", options.AName, err)
 	}
 	defer a.Close()
 
@@ -209,7 +210,7 @@ func main() {
 	runCommand := func(c Command) {
 		err := c.Run(options, flag.Args())
 		if err != nil {
-			if err == flag.ErrHelp {
+			if errors.Is(err, flag.ErrHelp) {
 				os.Exit(2)
 			}
 
