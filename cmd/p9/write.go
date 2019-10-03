@@ -37,7 +37,7 @@ func (cmd *writeCmd) Run(options GlobalOptions, args []string) error {
 	)
 	err := fset.Parse(args[1:])
 	if err != nil {
-		return fmt.Errorf("Failed to parse flags: %v", err)
+		return fmt.Errorf("parse flags: %v", err)
 	}
 
 	args = fset.Args()
@@ -65,20 +65,20 @@ func (cmd *writeCmd) Run(options GlobalOptions, args []string) error {
 
 		f, err := open()
 		if err != nil {
-			return fmt.Errorf("Failed to open %q: %v", args[0], err)
+			return fmt.Errorf("open %q: %v", args[0], err)
 		}
 		defer f.Close()
 
 		if *app {
 			_, err := f.Seek(0, io.SeekEnd)
 			if err != nil {
-				return fmt.Errorf("Failed to seek: %v", err)
+				return fmt.Errorf("seek %q: %v", args[0], err)
 			}
 		}
 
 		_, err = io.Copy(f, os.Stdin)
 		if err != nil {
-			return fmt.Errorf("Failed to write: %v", err)
+			return fmt.Errorf("write %q: %v", args[0], err)
 		}
 
 		return nil

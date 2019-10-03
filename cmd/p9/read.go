@@ -36,7 +36,7 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 	fset.BoolVar(&cmd.tar, "tar", false, "Output files as tar.")
 	err := fset.Parse(args[1:])
 	if err != nil {
-		return fmt.Errorf("Failed to parse flags: %v", err)
+		return fmt.Errorf("parse flags: %v", err)
 	}
 
 	args = fset.Args()

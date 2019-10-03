@@ -33,7 +33,7 @@ func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 	rw := fset.Bool("rw", false, "Make exported FS writable.")
 	err := fset.Parse(args[1:])
 	if err != nil {
-		return fmt.Errorf("Failed to parse flags: %v", err)
+		return fmt.Errorf("parse flags: %w", err)
 	}
 
 	args = fset.Args()
@@ -50,7 +50,7 @@ func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 
 	lis, err := net.Listen(options.Network, options.Address)
 	if err != nil {
-		return fmt.Errorf("Failed to listen: %v", err)
+		return fmt.Errorf("listen: %w", err)
 	}
 	defer lis.Close()
 
@@ -61,7 +61,7 @@ func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 			p9.FSConnHandler(fs, uint32(options.MSize)),
 		)
 		if err != nil {
-			errC <- fmt.Errorf("Failed to start server: %v", err)
+			errC <- fmt.Errorf("serve: %w", err)
 		}
 	}()
 
