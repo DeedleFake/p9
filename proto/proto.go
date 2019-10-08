@@ -5,6 +5,7 @@ package proto
 import (
 	"fmt"
 	"io"
+	"reflect"
 )
 
 const (
@@ -12,13 +13,35 @@ const (
 	NoTag uint16 = 0xFFFF
 )
 
-// Proto maps integer type IDs to functions that create the correct
-// message type for that ID. In other words, if the value sent over
-// the network to indication a specific message type is 1, then index
-// 1 in the Proto should be a function that returns that message type.
-type Proto map[uint8]func() interface{}
+type Proto struct {
+	rmap map[uint8]reflect.Type
+	smap map[reflect.Type]uint8
+}
 
-func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, err error) {
+func (p *Proto) Add(msgType uint8, t reflect.Type) *Proto {
+	if p.rmap == nil {
+		p.rmap = make(map[uint8]reflect.Type)
+	}
+	if p.smap == nil {
+		p.smap = make(map[reflect.Type]uint8)
+	}
+
+	p.rmap[msgType] = t
+	p.smap[t] = msgType
+
+	return p
+}
+
+func (p *Proto) TypeFromID(id uint8) reflect.Type {
+	return p.rmap[id]
+}
+
+func (p *Proto) IDFromType(t reflect.Type) (uint8, bool) {
+	id, ok := p.smap[t]
+	return id, ok
+}
+
+func (p *Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, err error) {
 	var size uint32
 	err = Read(r, &size)
 	if err != nil {
@@ -48,7 +71,9 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 
 	var msgType uint8
 	read(&msgType)
-	if p[msgType] == nil {
+
+	t := p.TypeFromID(msgType)
+	if t == nil {
 		if err != nil {
 			return nil, NoTag, err
 		}
@@ -59,13 +84,18 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 	tag = NoTag
 	read(&tag)
 
-	msg = p[msgType]()
-	read(msg)
+	m := reflect.New(t)
+	read(m.Interface())
 
-	return msg, tag, err
+	return m.Elem().Interface(), tag, err
 }
 
-func Send(w io.Writer, tag uint16, msgType uint8, msg interface{}) (err error) {
+func (p *Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
+	msgType, ok := p.IDFromType(reflect.Indirect(reflect.ValueOf(msg)).Type())
+	if !ok {
+		return fmt.Errorf("send: invalid message type: %T", msg)
+	}
+
 	write := func(v interface{}) {
 		if err != nil {
 			return

@@ -5,12 +5,11 @@ import (
 	"testing"
 
 	"github.com/DeedleFake/p9"
-	"github.com/DeedleFake/p9/proto"
 )
 
 func TestReadWrite(t *testing.T) {
 	var buf bytes.Buffer
-	err := proto.Send(&buf, 3, uint8(p9.TversionType), &p9.Tversion{
+	err := p9.Proto.Send(&buf, 3, &p9.Tversion{
 		Msize:   9,
 		Version: "This is a test.",
 	})
