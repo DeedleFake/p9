@@ -16,17 +16,17 @@ const (
 // message type for that ID. In other words, if the value sent over
 // the network to indication a specific message type is 1, then index
 // 1 in the Proto should be a function that returns that message type.
-//
-// Note that message types are serialized as unsigned 8-bit integers,
-// so the use of any indices outside of the range that can be
-// represented by those is undefined.
-type Proto []func() interface{}
+type Proto map[uint8]func() interface{}
 
 func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, err error) {
 	var size uint32
 	err = Read(r, &size)
 	if err != nil {
 		return nil, NoTag, fmt.Errorf("receive: %w", err)
+	}
+
+	if (msize > 0) && (size > msize) {
+		return nil, NoTag, fmt.Errorf("receive: %w", ErrLargeMessage)
 	}
 
 	lr := &limitedReader{
@@ -48,7 +48,7 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 
 	var msgType uint8
 	read(&msgType)
-	if (msgType < 0) || (int(msgType) > len(p)) || (p[int(msgType)] == nil) {
+	if p[msgType] == nil {
 		if err != nil {
 			return nil, NoTag, err
 		}
@@ -59,7 +59,7 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 	tag = NoTag
 	read(&tag)
 
-	msg = p[int(msgType)]()
+	msg = p[msgType]()
 	read(msg)
 
 	return msg, tag, err
