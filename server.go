@@ -63,7 +63,7 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 	}
 
 	for {
-		tmsg, tag, err := ReadMessage(c, msize)
+		tmsg, tag, err := Proto().Receive(c, msize)
 		if err != nil {
 			if err == io.EOF {
 				return
@@ -74,7 +74,7 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 
 		mode(func() {
 			rmsg := handler.HandleMessage(tmsg)
-			if rmsg, ok := rmsg.(*Rversion); ok {
+			if rmsg, ok := rmsg.(Rversion); ok {
 				if msize > 0 {
 					panic("Attempted to set msize twice")
 				}
@@ -85,7 +85,7 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 				}
 			}
 
-			err := WriteMessage(c, tag, rmsg)
+			err := Proto().Send(c, tag, rmsg)
 			if err != nil {
 				log.Printf("Error writing message: %v", err)
 			}
@@ -128,12 +128,12 @@ func (h ConnHandlerFunc) MessageHandler() MessageHandler { // nolint
 type MessageHandler interface {
 	// HandleMessage is passed received messages from the client. Its
 	// return value is then sent back to the client with the same tag.
-	HandleMessage(Message) Message
+	HandleMessage(interface{}) interface{}
 }
 
 // MessageHandlerFunc allows a function to be used as a MessageHandler.
-type MessageHandlerFunc func(Message) Message
+type MessageHandlerFunc func(interface{}) interface{}
 
-func (h MessageHandlerFunc) HandleMessage(msg Message) Message { // nolint
+func (h MessageHandlerFunc) HandleMessage(msg interface{}) interface{} { // nolint
 	return h(msg)
 }

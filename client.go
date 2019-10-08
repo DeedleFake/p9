@@ -2,11 +2,18 @@ package p9
 
 import (
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net"
 	"sync"
 	"time"
+)
+
+var (
+	// ErrUnsupportedVersion is returned from a handshake attempt that
+	// fails due to a version mismatch.
+	ErrUnsupportedVersion = errors.New("unsupported version")
 )
 
 // Client provides functionality for sending requests to and receiving
@@ -51,8 +58,8 @@ func NewClient(c net.Conn) *Client {
 	return client
 }
 
-// Dial is a convience function that dials and creates a client in the
-// same step.
+// Dial is a convenience function that dials and creates a client in
+// the same step.
 func Dial(network, addr string) (*Client, error) {
 	c, err := net.Dial(network, addr)
 	if err != nil {
@@ -83,7 +90,7 @@ func (c *Client) reader(ctx context.Context) {
 			return
 		}
 
-		msg, tag, err := ReadMessage(c.c, c.msize)
+		msg, tag, err := Proto().Receive(c.c, c.msize)
 		if err != nil {
 			if (err == io.EOF) || (ctx.Err() != nil) {
 				return
@@ -92,7 +99,7 @@ func (c *Client) reader(ctx context.Context) {
 			continue
 		}
 
-		if r, ok := msg.(*Rversion); ok {
+		if r, ok := msg.(Rversion); ok {
 			c.m.Lock()
 			c.msize = r.Msize
 			c.m.Unlock()
@@ -113,7 +120,7 @@ func (c *Client) reader(ctx context.Context) {
 // coord coordinates between Send calls and the reader.
 func (c *Client) coord(ctx context.Context) {
 	var nextTag uint16
-	tags := make(map[uint16]chan Message)
+	tags := make(map[uint16]chan interface{})
 
 	var nextFID uint32
 
@@ -147,33 +154,57 @@ func (c *Client) coord(ctx context.Context) {
 // been received. It is safe to place multiple Send calls
 // concurrently, and each will return when the response to that
 // request has been received.
-func (c *Client) Send(msg Message) (Message, error) {
+func (c *Client) Send(msg interface{}) (interface{}, error) {
+	debugLog("-> %T\n", msg)
+
 	tag := NoTag
-	if _, ok := msg.(*Tversion); !ok {
+	if _, ok := msg.(Tversion); !ok {
 		tag = <-c.nextTag
 	}
 
-	ret := make(chan Message, 1)
+	ret := make(chan interface{}, 1)
 	c.sentMsg <- clientMsg{
 		tag: tag,
 		ret: ret,
 	}
 
-	err := WriteMessage(c.c, tag, msg)
+	err := Proto().Send(c.c, tag, msg)
 	if err != nil {
 		return nil, err
 	}
 
 	rsp := <-ret
-	if err, ok := rsp.(*Rerror); ok {
+	debugLog("<- %T\n", rsp)
+
+	if err, ok := rsp.(Rerror); ok {
 		return nil, err
 	}
 	return rsp, nil
 }
 
+// Handshake performs an initial handshake to establish the maximum
+// allowed message size. A handshake must be performed before any
+// other request types may be sent.
+func (c *Client) Handshake(msize uint32) (uint32, error) {
+	rsp, err := c.Send(Tversion{
+		Msize:   msize,
+		Version: Version,
+	})
+	if err != nil {
+		return 0, err
+	}
+
+	version := rsp.(Rversion)
+	if version.Version != Version {
+		return 0, ErrUnsupportedVersion
+	}
+
+	return version.Msize, nil
+}
+
 // Sometimes I think that some type of tuples would be nice...
 type clientMsg struct {
 	tag  uint16
-	recv Message
-	ret  chan Message
+	recv interface{}
+	ret  chan interface{}
 }

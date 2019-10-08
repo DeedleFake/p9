@@ -1,9 +1,19 @@
 package p9
 
 import (
+	"bytes"
+	"errors"
+	"io"
 	"os"
 	"time"
 	"unsafe"
+
+	"github.com/DeedleFake/p9/internal/misc"
+	"github.com/DeedleFake/p9/proto"
+)
+
+var (
+	ErrLargeStat = errors.New("Stat larger that declared size")
 )
 
 // FileMode stores permission and type information about a file or
@@ -140,14 +150,6 @@ func (m FileMode) String() string { // nolint
 	return *(*string)(unsafe.Pointer(&buf))
 }
 
-func (m FileMode) encode(e *encoder) {
-	e.Encode(uint32(m))
-}
-
-func (m *FileMode) decode(d *decoder) {
-	d.Decode((*uint32)(m))
-}
-
 // Stat is a stat value.
 type Stat struct {
 	Type   uint16
@@ -180,46 +182,66 @@ func (s Stat) size() uint16 {
 	return uint16(47 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID))
 }
 
-func (s Stat) encode(e *encoder) {
-	e.Encode(s.size())
-	e.Encode(s.Type)
-	e.Encode(s.Dev)
-	e.Encode(s.QID)
-	e.Encode(s.Mode)
-	e.Encode(s.ATime)
-	e.Encode(s.MTime)
-	e.Encode(s.Length)
-	e.Encode(s.Name)
-	e.Encode(s.UID)
-	e.Encode(s.GID)
-	e.Encode(s.MUID)
+func (s Stat) P9Encode() (r []byte, err error) {
+	var buf bytes.Buffer
+	write := func(v interface{}) {
+		if err != nil {
+			return
+		}
+
+		err = proto.Write(&buf, v)
+	}
+
+	write(s.size())
+	write(s.Type)
+	write(s.Dev)
+	write(s.QID)
+	write(s.Mode)
+	write(s.ATime)
+	write(s.MTime)
+	write(s.Length)
+	write(s.Name)
+	write(s.UID)
+	write(s.GID)
+	write(s.MUID)
+
+	return buf.Bytes(), err
 }
 
-func (s *Stat) decode(d *decoder) {
+func (s *Stat) P9Decode(r io.Reader) (err error) {
 	var size uint16
-	d.Decode(&size)
+	err = proto.Read(r, &size)
+	if err != nil {
+		return err
+	}
 
-	r := d.r
-	d.r = &LimitedReader{
+	lr := &misc.LimitedReader{
 		R: r,
 		N: uint32(size),
 		E: ErrLargeStat,
 	}
-	defer func() {
-		d.r = r
-	}()
 
-	d.Decode(&s.Type)
-	d.Decode(&s.Dev)
-	d.Decode(&s.QID)
-	d.Decode(&s.Mode)
-	d.Decode(&s.ATime)
-	d.Decode(&s.MTime)
-	d.Decode(&s.Length)
-	d.Decode(&s.Name)
-	d.Decode(&s.UID)
-	d.Decode(&s.GID)
-	d.Decode(&s.MUID)
+	read := func(v interface{}) {
+		if err != nil {
+			return
+		}
+
+		err = proto.Read(lr, v)
+	}
+
+	read(&s.Type)
+	read(&s.Dev)
+	read(&s.QID)
+	read(&s.Mode)
+	read(&s.ATime)
+	read(&s.MTime)
+	read(&s.Length)
+	read(&s.Name)
+	read(&s.UID)
+	read(&s.GID)
+	read(&s.MUID)
+
+	return err
 }
 
 // DirEntry is a smaller version of Stat that eliminates unnecessary

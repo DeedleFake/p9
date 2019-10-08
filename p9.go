@@ -45,18 +45,6 @@ type QID struct {
 	Path    uint64
 }
 
-func (qid QID) encode(e *encoder) {
-	e.Encode(qid.Type)
-	e.Encode(qid.Version)
-	e.Encode(qid.Path)
-}
-
-func (qid *QID) decode(d *decoder) {
-	d.Decode(&qid.Type)
-	d.Decode(&qid.Version)
-	d.Decode(&qid.Path)
-}
-
 // QIDType represents an 8-bit QID type identifier.
 type QIDType uint8
 
@@ -75,14 +63,6 @@ const (
 // FileMode converts the QIDType to a FileMode.
 func (t QIDType) FileMode() FileMode {
 	return FileMode(t) << 24
-}
-
-func (t QIDType) encode(e *encoder) {
-	e.Encode(uint8(t))
-}
-
-func (t *QIDType) decode(d *decoder) {
-	d.Decode((*uint8)(t))
 }
 
 // Other constants.
