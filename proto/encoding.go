@@ -61,6 +61,14 @@ func (e *encoder) encode(v reflect.Value) {
 		return
 	}
 
+	switch v := v.Interface().(type) {
+	case Encoder:
+		buf, err := v.P9Encode()
+		e.err = err
+		e.mode(buf)
+		return
+	}
+
 	v = reflect.Indirect(v)
 
 	switch v := v.Interface().(type) {
@@ -119,11 +127,14 @@ func (d *decoder) decode(v reflect.Value) {
 
 	v = reflect.Indirect(v)
 
-	switch v.Interface().(type) {
-	case time.Time:
+	switch v := v.Addr().Interface().(type) {
+	case Decoder:
+		d.err = v.P9Decode(d.r)
+		return
+	case *time.Time:
 		var unix uint32
 		d.read(&unix)
-		v.Set(reflect.ValueOf(time.Unix(int64(unix), 0)))
+		*v = time.Unix(int64(unix), 0)
 		return
 	}
 
@@ -166,4 +177,12 @@ func (d *decoder) decode(v reflect.Value) {
 	default:
 		d.err = fmt.Errorf("invalid type: %T", v)
 	}
+}
+
+type Encoder interface {
+	P9Encode() ([]byte, error)
+}
+
+type Decoder interface {
+	P9Decode(r io.Reader) error
 }

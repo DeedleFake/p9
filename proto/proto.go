@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"reflect"
+
+	"github.com/DeedleFake/p9/internal/misc"
 )
 
 const (
@@ -18,30 +20,28 @@ type Proto struct {
 	smap map[reflect.Type]uint8
 }
 
-func (p *Proto) Add(msgType uint8, t reflect.Type) *Proto {
-	if p.rmap == nil {
-		p.rmap = make(map[uint8]reflect.Type)
-	}
-	if p.smap == nil {
-		p.smap = make(map[reflect.Type]uint8)
+func NewProto(mapping map[uint8]reflect.Type) Proto {
+	smap := make(map[reflect.Type]uint8, len(mapping))
+	for k, v := range mapping {
+		smap[v] = k
 	}
 
-	p.rmap[msgType] = t
-	p.smap[t] = msgType
-
-	return p
+	return Proto{
+		rmap: mapping,
+		smap: smap,
+	}
 }
 
-func (p *Proto) TypeFromID(id uint8) reflect.Type {
+func (p Proto) TypeFromID(id uint8) reflect.Type {
 	return p.rmap[id]
 }
 
-func (p *Proto) IDFromType(t reflect.Type) (uint8, bool) {
+func (p Proto) IDFromType(t reflect.Type) (uint8, bool) {
 	id, ok := p.smap[t]
 	return id, ok
 }
 
-func (p *Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, err error) {
+func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, err error) {
 	var size uint32
 	err = Read(r, &size)
 	if err != nil {
@@ -52,7 +52,7 @@ func (p *Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16,
 		return nil, NoTag, fmt.Errorf("receive: %w", ErrLargeMessage)
 	}
 
-	lr := &limitedReader{
+	lr := &misc.LimitedReader{
 		R: r,
 		N: size,
 		E: ErrLargeMessage,
@@ -90,7 +90,7 @@ func (p *Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16,
 	return m.Elem().Interface(), tag, err
 }
 
-func (p *Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
+func (p Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
 	msgType, ok := p.IDFromType(reflect.Indirect(reflect.ValueOf(msg)).Type())
 	if !ok {
 		return fmt.Errorf("send: invalid message type: %T", msg)
