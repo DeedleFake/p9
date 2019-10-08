@@ -3,118 +3,41 @@ package p9
 import (
 	"errors"
 	"io"
+	"reflect"
 
 	"github.com/DeedleFake/p9/proto"
 )
 
-var Proto = proto.Proto{
-	uint8(TversionType): func() interface{} {
-		return &Tversion{}
-	},
+var Proto proto.Proto
 
-	uint8(RversionType): func() interface{} {
-		return &Rversion{}
-	},
-
-	uint8(TauthType): func() interface{} {
-		return &Tauth{}
-	},
-
-	uint8(RauthType): func() interface{} {
-		return &Rauth{}
-	},
-
-	uint8(TattachType): func() interface{} {
-		return &Tattach{}
-	},
-
-	uint8(RattachType): func() interface{} {
-		return &Rattach{}
-	},
-
-	uint8(RerrorType): func() interface{} {
-		return &Rerror{}
-	},
-
-	uint8(TflushType): func() interface{} {
-		return &Tflush{}
-	},
-
-	uint8(RflushType): func() interface{} {
-		return &Rflush{}
-	},
-
-	uint8(TwalkType): func() interface{} {
-		return &Twalk{}
-	},
-
-	uint8(RwalkType): func() interface{} {
-		return &Rwalk{}
-	},
-
-	uint8(TopenType): func() interface{} {
-		return &Topen{}
-	},
-
-	uint8(RopenType): func() interface{} {
-		return &Ropen{}
-	},
-
-	uint8(TcreateType): func() interface{} {
-		return &Tcreate{}
-	},
-
-	uint8(RcreateType): func() interface{} {
-		return &Rcreate{}
-	},
-
-	uint8(TreadType): func() interface{} {
-		return &Tread{}
-	},
-
-	uint8(RreadType): func() interface{} {
-		return &Rread{}
-	},
-
-	uint8(TwriteType): func() interface{} {
-		return &Twrite{}
-	},
-
-	uint8(RwriteType): func() interface{} {
-		return &Rwrite{}
-	},
-
-	uint8(TclunkType): func() interface{} {
-		return &Tclunk{}
-	},
-
-	uint8(RclunkType): func() interface{} {
-		return &Rclunk{}
-	},
-
-	uint8(TremoveType): func() interface{} {
-		return &Tremove{}
-	},
-
-	uint8(RremoveType): func() interface{} {
-		return &Rremove{}
-	},
-
-	uint8(TstatType): func() interface{} {
-		return &Tstat{}
-	},
-
-	uint8(RstatType): func() interface{} {
-		return &Rstat{}
-	},
-
-	uint8(TwstatType): func() interface{} {
-		return &Twstat{}
-	},
-
-	uint8(RwstatType): func() interface{} {
-		return &Rwstat{}
-	},
+func init() {
+	Proto.Add(uint8(TversionType), reflect.TypeOf(Tversion{}))
+	Proto.Add(uint8(RversionType), reflect.TypeOf(Rversion{}))
+	Proto.Add(uint8(TauthType), reflect.TypeOf(Tauth{}))
+	Proto.Add(uint8(RauthType), reflect.TypeOf(Rauth{}))
+	Proto.Add(uint8(TattachType), reflect.TypeOf(Tattach{}))
+	Proto.Add(uint8(RattachType), reflect.TypeOf(Rattach{}))
+	Proto.Add(uint8(RerrorType), reflect.TypeOf(Rerror{}))
+	Proto.Add(uint8(TflushType), reflect.TypeOf(Tflush{}))
+	Proto.Add(uint8(RflushType), reflect.TypeOf(Rflush{}))
+	Proto.Add(uint8(TwalkType), reflect.TypeOf(Twalk{}))
+	Proto.Add(uint8(RwalkType), reflect.TypeOf(Rwalk{}))
+	Proto.Add(uint8(TopenType), reflect.TypeOf(Topen{}))
+	Proto.Add(uint8(RopenType), reflect.TypeOf(Ropen{}))
+	Proto.Add(uint8(TcreateType), reflect.TypeOf(Tcreate{}))
+	Proto.Add(uint8(RcreateType), reflect.TypeOf(Rcreate{}))
+	Proto.Add(uint8(TreadType), reflect.TypeOf(Tread{}))
+	Proto.Add(uint8(RreadType), reflect.TypeOf(Rread{}))
+	Proto.Add(uint8(TwriteType), reflect.TypeOf(Twrite{}))
+	Proto.Add(uint8(RwriteType), reflect.TypeOf(Rwrite{}))
+	Proto.Add(uint8(TclunkType), reflect.TypeOf(Tclunk{}))
+	Proto.Add(uint8(RclunkType), reflect.TypeOf(Rclunk{}))
+	Proto.Add(uint8(TremoveType), reflect.TypeOf(Tremove{}))
+	Proto.Add(uint8(RremoveType), reflect.TypeOf(Rremove{}))
+	Proto.Add(uint8(TstatType), reflect.TypeOf(Tstat{}))
+	Proto.Add(uint8(RstatType), reflect.TypeOf(Rstat{}))
+	Proto.Add(uint8(TwstatType), reflect.TypeOf(Twstat{}))
+	Proto.Add(uint8(RwstatType), reflect.TypeOf(Rwstat{}))
 }
 
 // Errors that are returned when messages lie about their own sizes.
