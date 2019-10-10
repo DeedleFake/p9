@@ -117,11 +117,11 @@ func (cmd *statCmd) printText(fi p9.DirEntry) {
 		suffix = "K"
 	}
 
-	fmt.Fprintf(w, "Mode:\t%v\n", fi.Mode)
+	fmt.Fprintf(w, "Mode:\t%v\n", fi.FileMode)
 	fmt.Fprintf(w, "Last Accessed:\t%v\n", fi.ATime.Format(timeFormat))
 	fmt.Fprintf(w, "Last Modified:\t%v\n", fi.MTime.Format(timeFormat))
 	fmt.Fprintf(w, "Size:\t%v%v\n", size, suffix)
-	fmt.Fprintf(w, "Name:\t%q\n", fi.Name)
+	fmt.Fprintf(w, "Name:\t%q\n", fi.EntryName)
 	fmt.Fprintf(w, "User:\t%q\n", fi.UID)
 	fmt.Fprintf(w, "Group:\t%q\n", fi.GID)
 	fmt.Fprintf(w, "Last Modified By:\t%q\n", fi.MUID)

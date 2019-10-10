@@ -119,7 +119,7 @@ func handleLS(rw http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	if fi.Mode&p9.ModeDir == 0 {
+	if !fi.IsDir() {
 		err := e.Encode(fi)
 		if err != nil {
 			log.Printf("Error encoding: %v", err)

@@ -61,7 +61,7 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 				return fmt.Errorf("stat %q: %w", arg, err)
 			}
 
-			if fi.Mode&p9.ModeDir == 0 {
+			if !fi.IsDir() {
 				cmd.printEntries([]p9.DirEntry{fi})
 				return nil
 			}
@@ -71,10 +71,10 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 				return fmt.Errorf("read dir %q: %w", arg, err)
 			}
 			sort.Slice(entries, func(i1, i2 int) bool {
-				return entries[i1].Name < entries[i2].Name
+				return entries[i1].EntryName < entries[i2].EntryName
 			})
 
-			fi.Name = "."
+			fi.EntryName = "."
 			cmd.printEntries(append([]p9.DirEntry{fi}, entries...))
 
 			if i < len(args)-1 {
@@ -107,14 +107,14 @@ func (cmd *lsCmd) printEntries(entries []p9.DirEntry) {
 			fmt.Fprintf(
 				w,
 				"%v\t%v\t%v\t%v\t%v\t",
-				entry.Mode,
+				entry.FileMode,
 				entry.UID,
 				entry.GID,
 				entry.Length, // TODO: Right-align this column.
 				entry.MTime.Format("Jan 02 "+yd),
 			)
 		}
-		fmt.Fprintf(w, "%v\n", entry.Name)
+		fmt.Fprintf(w, "%v\n", entry.EntryName)
 	}
 }
 

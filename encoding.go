@@ -30,17 +30,10 @@ func ReadDir(r io.Reader) ([]DirEntry, error) {
 	}
 }
 
-// WriteDir writes a series of directory entries to w. It uses getPath
-// to lookup the QID path of each entry by name. If getPath returns an
-// error, that error is immediately returned.
-func WriteDir(w io.Writer, entries []DirEntry, getPath func(string) (uint64, error)) error {
+// WriteDir writes a series of directory entries to w.
+func WriteDir(w io.Writer, entries []DirEntry) error {
 	for _, entry := range entries {
-		p, err := getPath(entry.EntryName)
-		if err != nil {
-			return err
-		}
-
-		err = proto.Write(w, entry.Stat(p))
+		err := proto.Write(w, entry.Stat())
 		if err != nil {
 			return err
 		}

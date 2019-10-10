@@ -495,14 +495,20 @@ func (h *fsHandler) read(msg Tread) interface{} {
 				}
 			}
 
-			file.dir.Reset()
-			err = WriteDir(&file.dir, dir, func(name string) (uint64, error) {
-				qid, err := h.getQID(path.Join(file.path, name), file.a)
+			for i := range dir {
+				qid, err := h.getQID(path.Join(file.path, dir[i].EntryName), file.a)
 				if err != nil {
-					return 0, err
+					return Rerror{
+						Ename: err.Error(),
+					}
 				}
-				return qid.Path, nil
-			})
+
+				dir[i].Version = qid.Version
+				dir[i].Path = qid.Path
+			}
+
+			file.dir.Reset()
+			err = WriteDir(&file.dir, dir)
 			if err != nil {
 				return Rerror{
 					Ename: err.Error(),
@@ -644,9 +650,11 @@ func (h *fsHandler) stat(msg Tstat) interface{} {
 			Ename: err.Error(),
 		}
 	}
+	stat.Version = qid.Version
+	stat.Path = qid.Path
 
 	return Rstat{
-		Stat: stat.Stat(qid.Path),
+		Stat: stat.Stat(),
 	}
 }
 
