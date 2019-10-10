@@ -167,7 +167,8 @@ type Stat struct {
 	MUID   string
 }
 
-func (s Stat) dirEntry() DirEntry {
+// DirEntry returns a DirEntry that corresponds to the Stat.
+func (s Stat) DirEntry() DirEntry {
 	return DirEntry{
 		FileMode:  s.Mode,
 		ATime:     s.ATime,
@@ -259,7 +260,9 @@ type DirEntry struct {
 	MUID      string
 }
 
-func (d DirEntry) stat(path uint64) Stat {
+// Stat returns a Stat that corresponds to the DirEntry. Its QID has
+// the given path.
+func (d DirEntry) Stat(path uint64) Stat {
 	return Stat{
 		Type: uint16(d.FileMode >> 16),
 		QID: QID{
