@@ -191,7 +191,7 @@ func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 	n, ok := h.paths[p]
 	if ok {
 		return QID{
-			Type: stat.Mode.QIDType(),
+			Type: stat.FileMode.QIDType(),
 			Path: n,
 		}, nil
 	}
@@ -200,7 +200,7 @@ func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 	h.paths[p] = n
 
 	return QID{
-		Type: stat.Mode.QIDType(),
+		Type: stat.FileMode.QIDType(),
 		Path: n,
 	}, nil
 }
