@@ -199,19 +199,14 @@ type Rstat struct { // nolint
 }
 
 func (stat Rstat) P9Encode() ([]byte, error) {
-	size, err := proto.Size(stat.Stat)
+	var buf bytes.Buffer
+
+	err := proto.Write(&buf, stat.Stat.size()+2)
 	if err != nil {
 		return nil, err
 	}
 
-	buf := bytes.NewBuffer(make([]byte, 0, int(size)))
-
-	err = proto.Write(buf, size)
-	if err != nil {
-		return nil, err
-	}
-
-	err = proto.Write(buf, stat.Stat)
+	err = proto.Write(&buf, stat.Stat)
 	return buf.Bytes(), err
 }
 
