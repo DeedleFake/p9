@@ -8,6 +8,7 @@ import (
 	"os/signal"
 
 	"github.com/DeedleFake/p9"
+	"github.com/DeedleFake/p9/proto"
 )
 
 type exportCmd struct{}
@@ -56,8 +57,9 @@ func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 
 	errC := make(chan error, 1)
 	go func() {
-		err = p9.Serve(
+		err = proto.Serve(
 			lis,
+			p9.Proto(),
 			p9.FSConnHandler(fs, uint32(options.MSize)),
 		)
 		if err != nil {

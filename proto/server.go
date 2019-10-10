@@ -1,19 +1,21 @@
-package p9
+package proto
 
 import (
 	"errors"
 	"io"
 	"log"
 	"net"
+	"sync"
 )
 
-// Serve serves a 9P server, listening for new connection on lis and
-// handling them using the provided handler.
+// Serve serves a server for the given Proto, listening for new
+// connection on lis and handling them using the provided handler.
 //
 // Note that to avoid a data race, messages from a single client are
 // handled entirely sequentially until an msize has been established,
-// at which point they will be handled concurrently.
-func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
+// at which point they will be handled concurrently. An msize is
+// established when a handler returns a Msizer.
+func Serve(lis net.Listener, p Proto, connHandler ConnHandler) (err error) {
 	for {
 		c, err := lis.Accept()
 		if err != nil {
@@ -35,14 +37,14 @@ func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 				defer c.Close()
 			}
 
-			handleMessages(c, mh)
+			handleMessages(c, p, mh)
 		}()
 	}
 }
 
-// ListenAndServe is a convenience function that establishes listener,
-// via net.Listen(), and then calls Serve().
-func ListenAndServe(network, addr string, connHandler ConnHandler) (rerr error) {
+// ListenAndServe is a convenience function that establishes a
+// listener, via net.Listen(), and then calls Serve().
+func ListenAndServe(network, addr string, p Proto, connHandler ConnHandler) (rerr error) {
 	lis, err := net.Listen(network, addr)
 	if err != nil {
 		return err
@@ -54,17 +56,19 @@ func ListenAndServe(network, addr string, connHandler ConnHandler) (rerr error) 
 		}
 	}()
 
-	return Serve(lis, connHandler)
+	return Serve(lis, p, connHandler)
 }
 
-func handleMessages(c net.Conn, handler MessageHandler) {
+func handleMessages(c net.Conn, p Proto, handler MessageHandler) {
+	var setter sync.Once
+
 	var msize uint32
 	mode := func(f func()) {
 		f()
 	}
 
 	for {
-		tmsg, tag, err := Proto().Receive(c, msize)
+		tmsg, tag, err := p.Receive(c, msize)
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				return
@@ -75,18 +79,20 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 
 		mode(func() {
 			rmsg := handler.HandleMessage(tmsg)
-			if rmsg, ok := rmsg.(Rversion); ok {
+			if rmsg, ok := rmsg.(Msizer); ok {
 				if msize > 0 {
-					panic("Attempted to set msize twice")
+					log.Println("Warning: Attempted to set msize twice.")
 				}
 
-				msize = rmsg.Msize
-				mode = func(f func()) {
-					go f()
-				}
+				setter.Do(func() {
+					msize = rmsg.P9Msize()
+					mode = func(f func()) {
+						go f()
+					}
+				})
 			}
 
-			err := Proto().Send(c, tag, rmsg)
+			err := p.Send(c, tag, rmsg)
 			if err != nil {
 				log.Printf("Error writing message: %v", err)
 			}
@@ -96,8 +102,9 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 
 // ConnHandler initializes new MessageHandlers for incoming
 // connections. Unlike HTTP, which is a connectionless protocol, 9P
-// requires that each connection be handled as a unique client session
-// with a stored state, hence this two-step process.
+// and related protocols require that each connection be handled as a
+// unique client session with a stored state, hence this two-step
+// process.
 //
 // If a ConnHandler provides a HandleConn(net.Conn) method, that
 // method will be called when a new connection is made. Similarly, if
@@ -137,4 +144,15 @@ type MessageHandlerFunc func(interface{}) interface{}
 
 func (h MessageHandlerFunc) HandleMessage(msg interface{}) interface{} {
 	return h(msg)
+}
+
+// Msizer is implemented by types that, when returned from a message
+// handler, should modify the maximum message size that the server
+// should from that point forward.
+//
+// Note that if this is returned more than once for a single
+// connection, a warning will be printed to stderr and the later
+// values will be ignored.
+type Msizer interface {
+	P9Msize() uint32
 }
