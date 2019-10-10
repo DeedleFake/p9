@@ -11,9 +11,12 @@ import (
 )
 
 var (
+	// ErrLargeMessage is returned by various functions if a message is
+	// larger than the current maximum message size.
 	ErrLargeMessage = errors.New("message larger than msize")
 )
 
+// Size returns the size of a message after encoding.
 func Size(v interface{}) (uint32, error) {
 	e := &encoder{}
 	e.mode = e.size
@@ -22,6 +25,7 @@ func Size(v interface{}) (uint32, error) {
 	return e.n, e.err
 }
 
+// Write encodes and writes a message to w.
 func Write(w io.Writer, v interface{}) error {
 	e := &encoder{w: w}
 	e.mode = e.write
@@ -30,6 +34,7 @@ func Write(w io.Writer, v interface{}) error {
 	return e.err
 }
 
+// Read decodes a message from r into v.
 func Read(r io.Reader, v interface{}) error {
 	d := &decoder{r: r}
 	d.decode(reflect.ValueOf(v))
@@ -179,10 +184,14 @@ func (d *decoder) decode(v reflect.Value) {
 	}
 }
 
+// Encoder is implemented by types that want to encode themselves in
+// a customized, non-standard way.
 type Encoder interface {
 	P9Encode() ([]byte, error)
 }
 
+// Decoder is implemented by types that want to decode themselves in
+// a customized, non-standard way.
 type Decoder interface {
 	P9Decode(r io.Reader) error
 }

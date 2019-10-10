@@ -21,7 +21,7 @@ func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 		}
 
 		go func() {
-			defer c.Close() // nolint
+			defer c.Close()
 
 			if h, ok := connHandler.(handleConn); ok {
 				h.HandleConn(c)
@@ -32,7 +32,7 @@ func Serve(lis net.Listener, connHandler ConnHandler) (err error) {
 
 			mh := connHandler.MessageHandler()
 			if c, ok := mh.(io.Closer); ok {
-				defer c.Close() // nolint
+				defer c.Close()
 			}
 
 			handleMessages(c, mh)
@@ -118,7 +118,7 @@ type handleDisconnect interface {
 // ConnHandlerFunc allows a function to be used as a ConnHandler.
 type ConnHandlerFunc func() MessageHandler
 
-func (h ConnHandlerFunc) MessageHandler() MessageHandler { // nolint
+func (h ConnHandlerFunc) MessageHandler() MessageHandler {
 	return h()
 }
 
@@ -135,6 +135,6 @@ type MessageHandler interface {
 // MessageHandlerFunc allows a function to be used as a MessageHandler.
 type MessageHandlerFunc func(interface{}) interface{}
 
-func (h MessageHandlerFunc) HandleMessage(msg interface{}) interface{} { // nolint
+func (h MessageHandlerFunc) HandleMessage(msg interface{}) interface{} {
 	return h(msg)
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/DeedleFake/p9/proto"
 )
 
+// Message type identifiers.
 const (
 	TversionType uint8 = 100 + iota
 	RversionType
@@ -70,40 +71,41 @@ var protocol = proto.NewProto(map[uint8]reflect.Type{
 	RwstatType:   reflect.TypeOf(Rwstat{}),
 })
 
+// Proto returns the protocol implementation for P9.
 func Proto() proto.Proto {
 	return protocol
 }
 
-type Tversion struct { // nolint
+type Tversion struct {
 	Msize   uint32
 	Version string
 }
 
 func (Tversion) P9NoTag() {}
 
-type Rversion struct { // nolint
+type Rversion struct {
 	Msize   uint32
 	Version string
 }
 
-type Tauth struct { // nolint
+type Tauth struct {
 	AFID  uint32
 	Uname string
 	Aname string
 }
 
-type Rauth struct { // nolint
+type Rauth struct {
 	AQID QID
 }
 
-type Tattach struct { // nolint
+type Tattach struct {
 	FID   uint32
 	AFID  uint32
 	Uname string
 	Aname string
 }
 
-type Rattach struct { // nolint
+type Rattach struct {
 	QID QID
 }
 
@@ -113,88 +115,88 @@ type Rerror struct {
 	Ename string
 }
 
-func (msg Rerror) Error() string { // nolint
+func (msg Rerror) Error() string {
 	return msg.Ename
 }
 
-type Tflush struct { // nolint
+type Tflush struct {
 	OldTag uint16
 }
 
-type Rflush struct { // nolint
+type Rflush struct {
 }
 
-type Twalk struct { // nolint
+type Twalk struct {
 	FID    uint32
 	NewFID uint32
 	Wname  []string
 }
 
-type Rwalk struct { // nolint
+type Rwalk struct {
 	WQID []QID
 }
 
-type Topen struct { // nolint
+type Topen struct {
 	FID  uint32
 	Mode uint8 // TODO: Make a Mode type?
 }
 
-type Ropen struct { // nolint
+type Ropen struct {
 	QID    QID
 	IOUnit uint32
 }
 
-type Tcreate struct { // nolint
+type Tcreate struct {
 	FID  uint32
 	Name string
 	Perm FileMode
 	Mode uint8 // TODO: Make a Mode type?
 }
 
-type Rcreate struct { // nolint
+type Rcreate struct {
 	QID    QID
 	IOUnit uint32
 }
 
-type Tread struct { // nolint
+type Tread struct {
 	FID    uint32
 	Offset uint64
 	Count  uint32
 }
 
-type Rread struct { // nolint
+type Rread struct {
 	Data []byte
 }
 
-type Twrite struct { // nolint
+type Twrite struct {
 	FID    uint32
 	Offset uint64
 	Data   []byte
 }
 
-type Rwrite struct { // nolint
+type Rwrite struct {
 	Count uint32
 }
 
-type Tclunk struct { // nolint
+type Tclunk struct {
 	FID uint32
 }
 
-type Rclunk struct { // nolint
+type Rclunk struct {
 }
 
-type Tremove struct { // nolint
+type Tremove struct {
 	FID uint32
 }
 
-type Rremove struct { // nolint
+type Rremove struct {
 }
 
-type Tstat struct { // nolint
+type Tstat struct {
 	FID uint32
 }
 
-type Rstat struct { // nolint
+type Rstat struct {
 	Stat Stat
 }
 
@@ -226,10 +228,10 @@ func (stat *Rstat) P9Decode(r io.Reader) error {
 	return proto.Read(r, &stat.Stat)
 }
 
-type Twstat struct { // nolint
+type Twstat struct {
 	FID  uint32
 	Stat Stat
 }
 
-type Rwstat struct { // nolint
+type Rwstat struct {
 }

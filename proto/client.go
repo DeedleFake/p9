@@ -13,8 +13,9 @@ import (
 )
 
 // Client provides functionality for sending requests to and receiving
-// responses from a 9P server. It automatically handles message tags,
-// properly blocking until a matching tag response has been received.
+// responses from a server for a given protocol. It automatically
+// handles message tags, properly blocking until a matching tag
+// response has been received.
 type Client struct {
 	cancel func()
 
@@ -139,6 +140,8 @@ func (c *Client) coord(ctx context.Context) {
 	}
 }
 
+// Msize returns the maxiumum size of a message. This does not perform
+// any communication with the server.
 func (c *Client) Msize() uint32 {
 	c.m.RLock()
 	defer c.m.RUnlock()
@@ -146,6 +149,8 @@ func (c *Client) Msize() uint32 {
 	return c.msize
 }
 
+// SetMsize sets the maximum size of a message. This does not perform
+// any communication with the server.
 func (c *Client) SetMsize(size uint32) {
 	c.m.Lock()
 	c.msize = size
@@ -194,6 +199,10 @@ type clientMsg struct {
 	ret  chan interface{}
 }
 
+// P9NoTag is implemented by any types that should not use tags for
+// communicating. In 9P, for example, this is true of the Tversion
+// message type, as it must be the first thing sent and no further
+// communication can happen before an Rversion is sent in response.
 type P9NoTag interface {
 	P9NoTag()
 }

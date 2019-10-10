@@ -14,16 +14,25 @@ var (
 	ErrUnsupportedVersion = errors.New("unsupported version")
 )
 
+// Client provides functionality for sending requests to and receiving
+// responses from a 9P server.
+//
+// A Client must be closed when it is no longer going to be used in
+// order to free up the related resources.
 type Client struct {
 	*proto.Client
 
 	fid uint32
 }
 
+// NewClient returns a client that communicates using c. The Client
+// will close c when the Client is closed.
 func NewClient(c net.Conn) *Client {
 	return &Client{Client: proto.NewClient(Proto(), c)}
 }
 
+// Dial is a convenience function that dials and creates a client in
+// the same step.
 func Dial(network, addr string) (*Client, error) {
 	pc, err := proto.Dial(Proto(), network, addr)
 	if err != nil {

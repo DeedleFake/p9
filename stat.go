@@ -13,7 +13,9 @@ import (
 )
 
 var (
-	ErrLargeStat = errors.New("Stat larger that declared size")
+	// ErrLargeStat is returned during decoding when a stat is larger
+	// than its own declared size.
+	ErrLargeStat = errors.New("stat larger that declared size")
 )
 
 // FileMode stores permission and type information about a file or
@@ -130,7 +132,7 @@ func (m FileMode) Perm() FileMode {
 	return m & 0777
 }
 
-func (m FileMode) String() string { // nolint
+func (m FileMode) String() string {
 	buf := []byte("----------")
 
 	const types = "dalMATL!DpSug"
@@ -282,34 +284,34 @@ type StatChanges struct {
 	DirEntry
 }
 
-func (c StatChanges) Mode() (FileMode, bool) { // nolint
+func (c StatChanges) Mode() (FileMode, bool) {
 	return c.DirEntry.Mode, c.DirEntry.Mode != 0xFFFFFFFF
 }
 
-func (c StatChanges) ATime() (time.Time, bool) { // nolint
+func (c StatChanges) ATime() (time.Time, bool) {
 	return c.DirEntry.ATime, c.DirEntry.ATime.Unix() != -1
 }
 
-func (c StatChanges) MTime() (time.Time, bool) { // nolint
+func (c StatChanges) MTime() (time.Time, bool) {
 	return c.DirEntry.MTime, c.DirEntry.MTime.Unix() != -1
 }
 
-func (c StatChanges) Length() (uint64, bool) { // nolint
+func (c StatChanges) Length() (uint64, bool) {
 	return c.DirEntry.Length, c.DirEntry.Length != 0xFFFFFFFFFFFFFFFF
 }
 
-func (c StatChanges) Name() (string, bool) { // nolint
+func (c StatChanges) Name() (string, bool) {
 	return c.DirEntry.Name, c.DirEntry.Name != ""
 }
 
-func (c StatChanges) UID() (string, bool) { // nolint
+func (c StatChanges) UID() (string, bool) {
 	return c.DirEntry.UID, c.DirEntry.UID != ""
 }
 
-func (c StatChanges) GID() (string, bool) { // nolint
+func (c StatChanges) GID() (string, bool) {
 	return c.DirEntry.GID, c.DirEntry.GID != ""
 }
 
-func (c StatChanges) MUID() (string, bool) { // nolint
+func (c StatChanges) MUID() (string, bool) {
 	return c.DirEntry.MUID, c.DirEntry.MUID != ""
 }

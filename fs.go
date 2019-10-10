@@ -745,7 +745,7 @@ func (h *fsHandler) Close() error {
 	h.fids.Range(func(k, v interface{}) bool {
 		file := v.(*fsFile)
 		if file.file != nil {
-			file.file.Close() // nolint
+			file.file.Close()
 		}
 		return true
 	})
