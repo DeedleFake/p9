@@ -70,36 +70,36 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 			}
 
 			switch {
-			case fi.Mode&(p9.ModeAppend|p9.ModeExclusive|p9.ModeMount|p9.ModeAuth) != 0:
+			case fi.FileMode&(p9.ModeAppend|p9.ModeExclusive|p9.ModeMount|p9.ModeAuth) != 0:
 
-			case fi.Mode&p9.ModeDir != 0:
+			case fi.IsDir():
 				children, err := f.Readdir()
 				if err != nil {
 					return fmt.Errorf("read dir %q: %w", arg, err)
 				}
 
 				for _, c := range children {
-					cf, err := f.Open(c.Name, p9.OREAD)
+					cf, err := f.Open(c.EntryName, p9.OREAD)
 					if err != nil {
-						return fmt.Errorf("open %q: %w", path.Join(arg, c.Name), err)
+						return fmt.Errorf("open %q: %w", path.Join(arg, c.EntryName), err)
 					}
 
-					err = writeFile(path.Join(arg, c.Name), cf)
+					err = writeFile(path.Join(arg, c.EntryName), cf)
 					if err != nil {
 						return err
 					}
 				}
 
 			default:
-				err = out.WriteHeader(&tar.Header{
-					Name:       arg,
-					Size:       int64(fi.Length),
-					Mode:       int64(fi.Mode.OS()),
-					Uname:      fi.UID,
-					Gname:      fi.GID,
-					ModTime:    fi.MTime,
-					AccessTime: fi.ATime,
-				})
+				hdr, err := tar.FileInfoHeader(fi, "")
+				if err != nil {
+					return fmt.Errorf("file info header for %q: %w", arg, err)
+				}
+				hdr.Name = arg
+				hdr.Uname = fi.UID
+				hdr.Gname = fi.GID
+
+				err = out.WriteHeader(hdr)
 				if err != nil {
 					return fmt.Errorf("write header for %q: %w", arg, err)
 				}
