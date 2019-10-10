@@ -1,8 +1,11 @@
 package p9
 
 import (
+	"bytes"
+	"io"
 	"reflect"
 
+	"github.com/DeedleFake/p9/internal/misc"
 	"github.com/DeedleFake/p9/proto"
 )
 
@@ -191,6 +194,39 @@ type Tstat struct { // nolint
 
 type Rstat struct { // nolint
 	Stat Stat
+}
+
+func (stat Rstat) P9Encode() ([]byte, error) {
+	size, err := proto.Size(stat.Stat)
+	if err != nil {
+		return nil, err
+	}
+
+	buf := bytes.NewBuffer(make([]byte, 0, int(size)))
+
+	err = proto.Write(buf, size)
+	if err != nil {
+		return nil, err
+	}
+
+	err = proto.Write(buf, stat.Stat)
+	return buf.Bytes(), err
+}
+
+func (stat *Rstat) P9Decode(r io.Reader) error {
+	var size uint16
+	err := proto.Read(r, &size)
+	if err != nil {
+		return err
+	}
+
+	r = &misc.LimitedReader{
+		R: r,
+		N: uint32(size),
+		E: ErrLargeStat,
+	}
+
+	return proto.Read(r, &stat.Stat)
 }
 
 type Twstat struct { // nolint
