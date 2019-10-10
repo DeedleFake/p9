@@ -2,18 +2,11 @@ package proto
 
 import (
 	"encoding/binary"
-	"errors"
 	"fmt"
 	"io"
 	"reflect"
 	"time"
 	"unsafe"
-)
-
-var (
-	// ErrLargeMessage is returned by various functions if a message is
-	// larger than the current maximum message size.
-	ErrLargeMessage = errors.New("message larger than msize")
 )
 
 // Size returns the size of a message after encoding.

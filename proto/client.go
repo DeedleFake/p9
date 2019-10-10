@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DeedleFake/p9/internal/debug"
@@ -17,16 +17,17 @@ import (
 // handles message tags, properly blocking until a matching tag
 // response has been received.
 type Client struct {
+	done   chan struct{}
 	cancel func()
 
 	p Proto
 	c net.Conn
 
-	nextTag chan uint16
-	sentMsg chan clientMsg
-	recvMsg chan clientMsg
+	nextTag   chan uint16
+	sentMsg   chan clientMsg
+	recvMsg   chan clientMsg
+	cancelMsg chan uint16
 
-	m     sync.RWMutex
 	msize uint32
 }
 
@@ -36,14 +37,16 @@ func NewClient(p Proto, c net.Conn) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	client := &Client{
+		done:   make(chan struct{}),
 		cancel: cancel,
 
 		p: p,
 		c: c,
 
-		nextTag: make(chan uint16),
-		sentMsg: make(chan clientMsg),
-		recvMsg: make(chan clientMsg),
+		nextTag:   make(chan uint16),
+		sentMsg:   make(chan clientMsg),
+		recvMsg:   make(chan clientMsg),
+		cancelMsg: make(chan uint16),
 
 		msize: 1024,
 	}
@@ -108,13 +111,14 @@ func (c *Client) reader(ctx context.Context) {
 
 // coord coordinates between Send calls and the reader.
 func (c *Client) coord(ctx context.Context) {
+	defer close(c.done)
+
 	var nextTag uint16
 	tags := make(map[uint16]chan interface{})
 
 	for {
 		select {
 		case <-ctx.Done():
-			close(c.nextTag)
 			return
 
 		case cm := <-c.sentMsg:
@@ -128,6 +132,9 @@ func (c *Client) coord(ctx context.Context) {
 
 			rcm <- cm.recv
 			delete(tags, cm.tag)
+
+		case tag := <-c.cancelMsg:
+			delete(tags, tag)
 
 		case c.nextTag <- nextTag:
 			for {
@@ -143,18 +150,13 @@ func (c *Client) coord(ctx context.Context) {
 // Msize returns the maxiumum size of a message. This does not perform
 // any communication with the server.
 func (c *Client) Msize() uint32 {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.msize
+	return atomic.LoadUint32(&c.msize)
 }
 
 // SetMsize sets the maximum size of a message. This does not perform
 // any communication with the server.
 func (c *Client) SetMsize(size uint32) {
-	c.m.Lock()
-	c.msize = size
-	c.m.Unlock()
+	atomic.StoreUint32(&c.msize, size)
 }
 
 // Send sends a message to the server, blocking until a response has
@@ -162,34 +164,48 @@ func (c *Client) SetMsize(size uint32) {
 // concurrently, and each will return when the response to that
 // request has been received.
 func (c *Client) Send(msg interface{}) (interface{}, error) {
-	debug.Log("-> %T\n", msg)
+	debug.Log("client -> %T\n", msg)
 
 	tag := NoTag
 	if _, ok := msg.(P9NoTag); !ok {
-		tag, ok = <-c.nextTag
-		if !ok {
-			panic("client closed")
+		select {
+		case <-c.done:
+			return nil, ErrClientClosed
+		case tag = <-c.nextTag:
 		}
 	}
 
 	ret := make(chan interface{}, 1)
-	c.sentMsg <- clientMsg{
+	select {
+	case <-c.done:
+		return nil, ErrClientClosed
+
+	case c.sentMsg <- clientMsg{
 		tag: tag,
 		ret: ret,
+	}:
 	}
 
 	err := c.p.Send(c.c, tag, msg)
 	if err != nil {
+		select {
+		case <-c.done:
+		case c.cancelMsg <- tag:
+		}
 		return nil, err
 	}
 
-	rsp := <-ret
-	debug.Log("<- %T\n", rsp)
+	select {
+	case <-c.done:
+		return nil, ErrClientClosed
+	case rsp := <-ret:
+		debug.Log("client <- %T\n", rsp)
 
-	if err, ok := rsp.(error); ok {
-		return nil, err
+		if err, ok := rsp.(error); ok {
+			return nil, err
+		}
+		return rsp, nil
 	}
-	return rsp, nil
 }
 
 // Sometimes I think that some type of tuples would be nice...

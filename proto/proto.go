@@ -3,11 +3,22 @@
 package proto
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"reflect"
 
 	"github.com/DeedleFake/p9/internal/util"
+)
+
+var (
+	// ErrLargeMessage is returned by various functions if a message is
+	// larger than the current maximum message size.
+	ErrLargeMessage = errors.New("message larger than msize")
+
+	// ErrClientClosed is returned by attempts to send to a closed
+	// client.
+	ErrClientClosed = errors.New("client closed")
 )
 
 const (
