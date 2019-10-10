@@ -1,11 +1,11 @@
-package misc_test
+package util_test
 
 import (
 	"bytes"
 	"io"
 	"testing"
 
-	"github.com/DeedleFake/p9/internal/misc"
+	"github.com/DeedleFake/p9/internal/util"
 )
 
 func TestLimitedReader(t *testing.T) {
@@ -32,7 +32,7 @@ func TestLimitedReader(t *testing.T) {
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
-			r := &misc.LimitedReader{
+			r := &util.LimitedReader{
 				R: bytes.NewReader(test.in),
 				N: uint32(len(test.out)),
 				E: io.ErrUnexpectedEOF,

@@ -8,7 +8,7 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/DeedleFake/p9/internal/misc"
+	"github.com/DeedleFake/p9/internal/util"
 	"github.com/DeedleFake/p9/proto"
 )
 
@@ -215,7 +215,7 @@ func (s *Stat) P9Decode(r io.Reader) (err error) {
 		return err
 	}
 
-	lr := &misc.LimitedReader{
+	lr := &util.LimitedReader{
 		R: r,
 		N: uint32(size),
 		E: ErrLargeStat,

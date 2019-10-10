@@ -5,7 +5,7 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/DeedleFake/p9/internal/misc"
+	"github.com/DeedleFake/p9/internal/util"
 	"github.com/DeedleFake/p9/proto"
 )
 
@@ -220,7 +220,7 @@ func (stat *Rstat) P9Decode(r io.Reader) error {
 		return err
 	}
 
-	r = &misc.LimitedReader{
+	r = &util.LimitedReader{
 		R: r,
 		N: uint32(size),
 		E: ErrLargeStat,

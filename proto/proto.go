@@ -7,7 +7,7 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/DeedleFake/p9/internal/misc"
+	"github.com/DeedleFake/p9/internal/util"
 )
 
 const (
@@ -52,7 +52,7 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 		return nil, NoTag, fmt.Errorf("receive: %w", ErrLargeMessage)
 	}
 
-	lr := &misc.LimitedReader{
+	lr := &util.LimitedReader{
 		R: r,
 		N: size,
 		E: ErrLargeMessage,
