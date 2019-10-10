@@ -178,6 +178,9 @@ func (s Stat) DirEntry() DirEntry {
 		UID:       s.UID,
 		GID:       s.GID,
 		MUID:      s.MUID,
+
+		Path:    s.QID.Path,
+		Version: s.QID.Version,
 	}
 }
 
@@ -258,16 +261,19 @@ type DirEntry struct {
 	UID       string
 	GID       string
 	MUID      string
+
+	Path    uint64
+	Version uint32
 }
 
-// Stat returns a Stat that corresponds to the DirEntry. Its QID has
-// the given path.
-func (d DirEntry) Stat(path uint64) Stat {
+// Stat returns a Stat that corresponds to the DirEntry.
+func (d DirEntry) Stat() Stat {
 	return Stat{
 		Type: uint16(d.FileMode >> 16),
 		QID: QID{
-			Type: QIDType(d.FileMode >> 24),
-			Path: path,
+			Type:    QIDType(d.FileMode >> 24),
+			Version: d.Version,
+			Path:    d.Path,
 		},
 		Mode:   d.FileMode,
 		ATime:  d.ATime,
