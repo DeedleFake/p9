@@ -26,7 +26,7 @@ func ReadDir(r io.Reader) ([]DirEntry, error) {
 			return entries, err
 		}
 
-		entries = append(entries, stat.dirEntry())
+		entries = append(entries, stat.DirEntry())
 	}
 }
 
@@ -35,12 +35,12 @@ func ReadDir(r io.Reader) ([]DirEntry, error) {
 // error, that error is immediately returned.
 func WriteDir(w io.Writer, entries []DirEntry, getPath func(string) (uint64, error)) error {
 	for _, entry := range entries {
-		p, err := getPath(entry.Name)
+		p, err := getPath(entry.EntryName)
 		if err != nil {
 			return err
 		}
 
-		err = proto.Write(w, entry.stat(p))
+		err = proto.Write(w, entry.Stat(p))
 		if err != nil {
 			return err
 		}

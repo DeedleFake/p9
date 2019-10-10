@@ -167,16 +167,17 @@ type Stat struct {
 	MUID   string
 }
 
-func (s Stat) dirEntry() DirEntry {
+// DirEntry returns a DirEntry that corresponds to the Stat.
+func (s Stat) DirEntry() DirEntry {
 	return DirEntry{
-		Mode:   s.Mode,
-		ATime:  s.ATime,
-		MTime:  s.MTime,
-		Length: s.Length,
-		Name:   s.Name,
-		UID:    s.UID,
-		GID:    s.GID,
-		MUID:   s.MUID,
+		FileMode:  s.Mode,
+		ATime:     s.ATime,
+		MTime:     s.MTime,
+		Length:    s.Length,
+		EntryName: s.Name,
+		UID:       s.UID,
+		GID:       s.GID,
+		MUID:      s.MUID,
 	}
 }
 
@@ -249,32 +250,58 @@ func (s *Stat) P9Decode(r io.Reader) (err error) {
 // DirEntry is a smaller version of Stat that eliminates unnecessary
 // or duplicate fields.
 type DirEntry struct {
-	Mode   FileMode
-	ATime  time.Time
-	MTime  time.Time
-	Length uint64
-	Name   string
-	UID    string
-	GID    string
-	MUID   string
+	FileMode  FileMode
+	ATime     time.Time
+	MTime     time.Time
+	Length    uint64
+	EntryName string
+	UID       string
+	GID       string
+	MUID      string
 }
 
-func (d DirEntry) stat(path uint64) Stat {
+// Stat returns a Stat that corresponds to the DirEntry. Its QID has
+// the given path.
+func (d DirEntry) Stat(path uint64) Stat {
 	return Stat{
-		Type: uint16(d.Mode >> 16),
+		Type: uint16(d.FileMode >> 16),
 		QID: QID{
-			Type: QIDType(d.Mode >> 24),
+			Type: QIDType(d.FileMode >> 24),
 			Path: path,
 		},
-		Mode:   d.Mode,
+		Mode:   d.FileMode,
 		ATime:  d.ATime,
 		MTime:  d.MTime,
 		Length: d.Length,
-		Name:   d.Name,
+		Name:   d.EntryName,
 		UID:    d.UID,
 		GID:    d.GID,
 		MUID:   d.MUID,
 	}
+}
+
+func (d DirEntry) Name() string {
+	return d.EntryName
+}
+
+func (d DirEntry) Size() int64 {
+	return int64(d.Length)
+}
+
+func (d DirEntry) Mode() os.FileMode {
+	return d.FileMode.OS()
+}
+
+func (d DirEntry) ModTime() time.Time {
+	return d.MTime
+}
+
+func (d DirEntry) IsDir() bool {
+	return d.FileMode&ModeDir != 0
+}
+
+func (d DirEntry) Sys() interface{} {
+	return d
 }
 
 // StatChanges is a wrapper around DirEntry that is used in wstat
@@ -285,7 +312,7 @@ type StatChanges struct {
 }
 
 func (c StatChanges) Mode() (FileMode, bool) {
-	return c.DirEntry.Mode, c.DirEntry.Mode != 0xFFFFFFFF
+	return c.DirEntry.FileMode, c.DirEntry.FileMode != 0xFFFFFFFF
 }
 
 func (c StatChanges) ATime() (time.Time, bool) {
@@ -301,7 +328,7 @@ func (c StatChanges) Length() (uint64, bool) {
 }
 
 func (c StatChanges) Name() (string, bool) {
-	return c.DirEntry.Name, c.DirEntry.Name != ""
+	return c.DirEntry.EntryName, c.DirEntry.EntryName != ""
 }
 
 func (c StatChanges) UID() (string, bool) {

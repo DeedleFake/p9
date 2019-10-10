@@ -14,10 +14,10 @@ func infoToEntry(fi os.FileInfo) DirEntry {
 	sys, _ := fi.Sys().(*syscall.Stat_t)
 	if sys == nil {
 		return DirEntry{
-			Mode:   ModeFromOS(fi.Mode()),
-			MTime:  fi.ModTime(),
-			Length: uint64(fi.Size()),
-			Name:   fi.Name(),
+			FileMode:  ModeFromOS(fi.Mode()),
+			MTime:     fi.ModTime(),
+			Length:    uint64(fi.Size()),
+			EntryName: fi.Name(),
 		}
 	}
 
@@ -34,12 +34,12 @@ func infoToEntry(fi os.FileInfo) DirEntry {
 	}
 
 	return DirEntry{
-		Mode:   ModeFromOS(fi.Mode()),
-		ATime:  time.Unix(sys.Atimespec.Unix()),
-		MTime:  fi.ModTime(),
-		Length: uint64(fi.Size()),
-		Name:   fi.Name(),
-		UID:    uname,
-		GID:    gname,
+		FileMode:  ModeFromOS(fi.Mode()),
+		ATime:     time.Unix(sys.Atimespec.Unix()),
+		MTime:     fi.ModTime(),
+		Length:    uint64(fi.Size()),
+		EntryName: fi.Name(),
+		UID:       uname,
+		GID:       gname,
 	}
 }

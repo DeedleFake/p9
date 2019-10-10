@@ -191,7 +191,7 @@ func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 	n, ok := h.paths[p]
 	if ok {
 		return QID{
-			Type: stat.Mode.QIDType(),
+			Type: stat.FileMode.QIDType(),
 			Path: n,
 		}, nil
 	}
@@ -200,7 +200,7 @@ func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 	h.paths[p] = n
 
 	return QID{
-		Type: stat.Mode.QIDType(),
+		Type: stat.FileMode.QIDType(),
 		Path: n,
 	}, nil
 }
@@ -646,7 +646,7 @@ func (h *fsHandler) stat(msg Tstat) interface{} {
 	}
 
 	return Rstat{
-		Stat: stat.stat(qid.Path),
+		Stat: stat.Stat(qid.Path),
 	}
 }
 
@@ -661,7 +661,7 @@ func (h *fsHandler) wstat(msg Twstat) interface{} {
 	defer file.RUnlock()
 
 	changes := StatChanges{
-		DirEntry: msg.Stat.dirEntry(),
+		DirEntry: msg.Stat.DirEntry(),
 	}
 
 	err := file.a.WriteStat(file.path, changes)

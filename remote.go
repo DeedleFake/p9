@@ -320,7 +320,7 @@ func (file *Remote) Stat(p string) (DirEntry, error) {
 		}
 		stat := rsp.(Rstat)
 
-		return stat.Stat.dirEntry(), nil
+		return stat.Stat.DirEntry(), nil
 	}
 
 	file, err := file.walk(p)
