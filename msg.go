@@ -88,6 +88,10 @@ type Rversion struct {
 	Version string
 }
 
+func (r Rversion) P9Msize() uint32 {
+	return r.Msize
+}
+
 type Tauth struct {
 	AFID  uint32
 	Uname string

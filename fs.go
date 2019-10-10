@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/DeedleFake/p9/internal/debug"
+	"github.com/DeedleFake/p9/proto"
 )
 
 // FileSystem is an interface that allows high-level implementations
@@ -148,7 +149,7 @@ type fsHandler struct {
 // BUG: Tflush requests are not currently handled at all by this
 // implementation due to no clear method of stopping a pending call to
 // ReadAt() or WriteAt().
-func FSHandler(fs FileSystem, msize uint32) MessageHandler {
+func FSHandler(fs FileSystem, msize uint32) proto.MessageHandler {
 	return &fsHandler{
 		fs:    fs,
 		msize: msize,
@@ -162,8 +163,8 @@ func FSHandler(fs FileSystem, msize uint32) MessageHandler {
 //
 // The returned ConnHandler implementation will print debug messages
 // to stderr if the p9debug build tag is set.
-func FSConnHandler(fs FileSystem, msize uint32) ConnHandler {
-	return ConnHandlerFunc(func() MessageHandler {
+func FSConnHandler(fs FileSystem, msize uint32) proto.ConnHandler {
+	return proto.ConnHandlerFunc(func() proto.MessageHandler {
 		debug.Log("Got new connection to FSConnHandler.\n")
 		return FSHandler(fs, msize)
 	})
