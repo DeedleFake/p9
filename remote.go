@@ -10,32 +10,6 @@ import (
 	"sync"
 )
 
-var (
-	// ErrUnsupportedVersion is returned from a handshake attempt that
-	// fails due to a version mismatch.
-	ErrUnsupportedVersion = errors.New("unsupported version")
-)
-
-// Handshake performs an initial handshake to establish the maximum
-// allowed message size. A handshake must be performed before any
-// other request types may be sent.
-func (c *Client) Handshake(msize uint32) (uint32, error) {
-	rsp, err := c.Send(&Tversion{
-		Msize:   msize,
-		Version: Version,
-	})
-	if err != nil {
-		return 0, err
-	}
-
-	version := rsp.(*Rversion)
-	if version.Version != Version {
-		return 0, ErrUnsupportedVersion
-	}
-
-	return version.Msize, nil
-}
-
 // Remote provides a file-like interface for performing operations on
 // files presented by a 9P server.
 //
@@ -51,70 +25,19 @@ type Remote struct {
 	pos uint64
 }
 
-// Auth requests an auth file from the server, returning a Remote
-// representing it or an error if one occurred.
-func (c *Client) Auth(user, aname string) (*Remote, error) {
-	fid := <-c.nextFID
-
-	rsp, err := c.Send(&Tauth{
-		AFID:  fid,
-		Uname: user,
-		Aname: aname,
-	})
-	if err != nil {
-		return nil, err
-	}
-	rauth := rsp.(*Rauth)
-
-	return &Remote{
-		client: c,
-		fid:    fid,
-		qid:    rauth.AQID,
-	}, nil
-}
-
-// Attach attaches to a filesystem provided by the connected server
-// with the given attributes. If no authentication has been done,
-// afile may be nil.
-func (c *Client) Attach(afile *Remote, user, aname string) (*Remote, error) {
-	fid := <-c.nextFID
-
-	afid := NoFID
-	if afile != nil {
-		afid = afile.fid
-	}
-
-	rsp, err := c.Send(&Tattach{
-		FID:   fid,
-		AFID:  afid,
-		Uname: user,
-		Aname: aname,
-	})
-	if err != nil {
-		return nil, err
-	}
-	attach := rsp.(*Rattach)
-
-	return &Remote{
-		client: c,
-		fid:    fid,
-		qid:    attach.QID,
-	}, nil
-}
-
 // Type returns the type of the file represented by the Remote.
 func (file *Remote) Type() QIDType {
 	return file.qid.Type
 }
 
 func (file *Remote) walk(p string) (*Remote, error) {
-	fid := <-file.client.nextFID
+	fid := file.client.nextFID()
 
 	w := []string{path.Clean(p)}
 	if w[0] != "/" {
 		w = strings.Split(w[0], "/")
 	}
-	rsp, err := file.client.Send(&Twalk{
+	rsp, err := file.client.Send(Twalk{
 		FID:    file.fid,
 		NewFID: fid,
 		Wname:  w,
@@ -122,7 +45,7 @@ func (file *Remote) walk(p string) (*Remote, error) {
 	if err != nil {
 		return nil, err
 	}
-	walk := rsp.(*Rwalk)
+	walk := rsp.(Rwalk)
 
 	qid := walk.WQID[len(walk.WQID)-1]
 	if len(walk.WQID) != len(w) {
@@ -152,14 +75,14 @@ func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 		return nil, err
 	}
 
-	rsp, err := file.client.Send(&Topen{
+	rsp, err := file.client.Send(Topen{
 		FID:  next.fid,
 		Mode: mode,
 	})
 	if err != nil {
 		return nil, err
 	}
-	open := rsp.(*Ropen)
+	open := rsp.(Ropen)
 
 	next.qid = open.QID
 
@@ -175,7 +98,7 @@ func (file *Remote) Create(p string, perm FileMode, mode uint8) (*Remote, error)
 		return nil, err
 	}
 
-	rsp, err := file.client.Send(&Tcreate{
+	rsp, err := file.client.Send(Tcreate{
 		FID:  next.fid,
 		Name: name,
 		Perm: perm,
@@ -184,7 +107,7 @@ func (file *Remote) Create(p string, perm FileMode, mode uint8) (*Remote, error)
 	if err != nil {
 		return nil, err
 	}
-	create := rsp.(*Rcreate)
+	create := rsp.(Rcreate)
 
 	next.qid = create.QID
 
@@ -195,7 +118,7 @@ func (file *Remote) Create(p string, perm FileMode, mode uint8) (*Remote, error)
 // "", it closes the current file, if open, and deletes it.
 func (file *Remote) Remove(p string) error {
 	if p == "" {
-		_, err := file.client.Send(&Tremove{
+		_, err := file.client.Send(Tremove{
 			FID: file.fid,
 		})
 		return err
@@ -264,14 +187,11 @@ func (file *Remote) Read(buf []byte) (int, error) {
 }
 
 func (file *Remote) maxBufSize() int {
-	file.client.m.RLock()
-	defer file.client.m.RUnlock()
-
-	return int(file.client.msize - IOHeaderSize)
+	return int(file.client.Msize() - IOHeaderSize)
 }
 
 func (file *Remote) readPart(buf []byte, off int64) (int, error) {
-	rsp, err := file.client.Send(&Tread{
+	rsp, err := file.client.Send(Tread{
 		FID:    file.fid,
 		Offset: uint64(off),
 		Count:  uint32(len(buf)),
@@ -279,7 +199,7 @@ func (file *Remote) readPart(buf []byte, off int64) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	read := rsp.(*Rread)
+	read := rsp.(Rread)
 	if len(read.Data) == 0 {
 		return 0, io.EOF
 	}
@@ -331,7 +251,7 @@ func (file *Remote) Write(data []byte) (int, error) {
 }
 
 func (file *Remote) writePart(data []byte, off int64) (int, error) {
-	rsp, err := file.client.Send(&Twrite{
+	rsp, err := file.client.Send(Twrite{
 		FID:    file.fid,
 		Offset: uint64(off),
 		Data:   data,
@@ -339,7 +259,7 @@ func (file *Remote) writePart(data []byte, off int64) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	write := rsp.(*Rwrite)
+	write := rsp.(Rwrite)
 
 	if write.Count < uint32(len(data)) {
 		return int(write.Count), io.EOF
@@ -381,7 +301,7 @@ func (file *Remote) WriteAt(data []byte, off int64) (int, error) {
 // Close closes the file on the server. Further usage of the file will
 // produce errors.
 func (file *Remote) Close() error {
-	_, err := file.client.Send(&Tclunk{
+	_, err := file.client.Send(Tclunk{
 		FID: file.fid,
 	})
 	return err
@@ -392,13 +312,13 @@ func (file *Remote) Close() error {
 // the current file.
 func (file *Remote) Stat(p string) (DirEntry, error) {
 	if p == "" {
-		rsp, err := file.client.Send(&Tstat{
+		rsp, err := file.client.Send(Tstat{
 			FID: file.fid,
 		})
 		if err != nil {
 			return DirEntry{}, err
 		}
-		stat := rsp.(*Rstat)
+		stat := rsp.(Rstat)
 
 		return stat.Stat.dirEntry(), nil
 	}

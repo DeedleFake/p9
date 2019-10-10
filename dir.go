@@ -19,7 +19,8 @@ func (d Dir) path(p string) string {
 	return filepath.Join(string(d), filepath.FromSlash(p))
 }
 
-func (d Dir) Stat(p string) (DirEntry, error) { // nolint
+// Stat implements Attachment.Stat.
+func (d Dir) Stat(p string) (DirEntry, error) {
 	fi, err := os.Stat(d.path(p))
 	if err != nil {
 		return DirEntry{}, err
@@ -28,7 +29,8 @@ func (d Dir) Stat(p string) (DirEntry, error) { // nolint
 	return infoToEntry(fi), nil
 }
 
-func (d Dir) WriteStat(p string, changes StatChanges) error { // nolint
+// WriteStat implements Attachment.WriteStat.
+func (d Dir) WriteStat(p string, changes StatChanges) error {
 	// TODO: Add support for other values.
 
 	p = d.path(p)
@@ -70,11 +72,13 @@ func (d Dir) WriteStat(p string, changes StatChanges) error { // nolint
 	return nil
 }
 
-func (d Dir) Auth(user, aname string) (File, error) { // nolint
+// Auth implements FileSystem.Auth.
+func (d Dir) Auth(user, aname string) (File, error) {
 	return nil, errors.New("auth not supported")
 }
 
-func (d Dir) Attach(afile File, user, aname string) (Attachment, error) { // nolint
+// Attach implements FileSystem.Attach.
+func (d Dir) Attach(afile File, user, aname string) (Attachment, error) {
 	switch aname {
 	case "", "/":
 		return d, nil
@@ -83,7 +87,8 @@ func (d Dir) Attach(afile File, user, aname string) (Attachment, error) { // nol
 	return nil, errors.New("unknown attachment")
 }
 
-func (d Dir) Open(p string, mode uint8) (File, error) { // nolint
+// Open implements Attachment.Open.
+func (d Dir) Open(p string, mode uint8) (File, error) {
 	flag := toOSFlags(mode)
 
 	file, err := os.OpenFile(d.path(p), flag, 0644)
@@ -92,7 +97,8 @@ func (d Dir) Open(p string, mode uint8) (File, error) { // nolint
 	}, err
 }
 
-func (d Dir) Create(p string, perm FileMode, mode uint8) (File, error) { // nolint
+// Create implements Attachment.Create.
+func (d Dir) Create(p string, perm FileMode, mode uint8) (File, error) {
 	p = d.path(p)
 
 	if perm&ModeDir != 0 {
@@ -110,7 +116,8 @@ func (d Dir) Create(p string, perm FileMode, mode uint8) (File, error) { // noli
 	}, err
 }
 
-func (d Dir) Remove(p string) error { // nolint
+// Remove implements Attachment.Remove.
+func (d Dir) Remove(p string) error {
 	return os.Remove(d.path(p))
 }
 
@@ -118,7 +125,7 @@ type dirFile struct {
 	*os.File
 }
 
-func (f *dirFile) Readdir() ([]DirEntry, error) { // nolint
+func (f *dirFile) Readdir() ([]DirEntry, error) {
 	fi, err := f.File.Readdir(-1)
 	if err != nil {
 		return nil, err
@@ -190,11 +197,13 @@ type AuthFS struct {
 	AttachFunc func(afile File, user, aname string) (File, error)
 }
 
-func (a AuthFS) Auth(user, aname string) (File, error) { // nolint
+// Auth implements FileSystem.Auth.
+func (a AuthFS) Auth(user, aname string) (File, error) {
 	return a.AuthFunc(user, aname)
 }
 
-func (a AuthFS) Attach(afile File, user, aname string) (Attachment, error) { // nolint
+// Attach implements FileSystem.Attach.
+func (a AuthFS) Attach(afile File, user, aname string) (Attachment, error) {
 	file, err := a.AttachFunc(afile, user, aname)
 	if err != nil {
 		return nil, err

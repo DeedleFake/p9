@@ -1,12 +1,12 @@
 // +build p9debug
 
-package p9
+package debug
 
 import (
 	"fmt"
 	"os"
 )
 
-func debugLog(str string, args ...interface{}) {
+func Log(str string, args ...interface{}) {
 	fmt.Fprintf(os.Stderr, str, args...)
 }

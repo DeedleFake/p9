@@ -1,9 +1,21 @@
 package p9
 
 import (
+	"bytes"
+	"errors"
+	"io"
 	"os"
 	"time"
 	"unsafe"
+
+	"github.com/DeedleFake/p9/internal/util"
+	"github.com/DeedleFake/p9/proto"
+)
+
+var (
+	// ErrLargeStat is returned during decoding when a stat is larger
+	// than its own declared size.
+	ErrLargeStat = errors.New("stat larger that declared size")
 )
 
 // FileMode stores permission and type information about a file or
@@ -120,7 +132,7 @@ func (m FileMode) Perm() FileMode {
 	return m & 0777
 }
 
-func (m FileMode) String() string { // nolint
+func (m FileMode) String() string {
 	buf := []byte("----------")
 
 	const types = "dalMATL!DpSug"
@@ -138,14 +150,6 @@ func (m FileMode) String() string { // nolint
 	}
 
 	return *(*string)(unsafe.Pointer(&buf))
-}
-
-func (m FileMode) encode(e *encoder) {
-	e.Encode(uint32(m))
-}
-
-func (m *FileMode) decode(d *decoder) {
-	d.Decode((*uint32)(m))
 }
 
 // Stat is a stat value.
@@ -180,46 +184,66 @@ func (s Stat) size() uint16 {
 	return uint16(47 + len(s.Name) + len(s.UID) + len(s.GID) + len(s.MUID))
 }
 
-func (s Stat) encode(e *encoder) {
-	e.Encode(s.size())
-	e.Encode(s.Type)
-	e.Encode(s.Dev)
-	e.Encode(s.QID)
-	e.Encode(s.Mode)
-	e.Encode(s.ATime)
-	e.Encode(s.MTime)
-	e.Encode(s.Length)
-	e.Encode(s.Name)
-	e.Encode(s.UID)
-	e.Encode(s.GID)
-	e.Encode(s.MUID)
+func (s Stat) P9Encode() (r []byte, err error) {
+	var buf bytes.Buffer
+	write := func(v interface{}) {
+		if err != nil {
+			return
+		}
+
+		err = proto.Write(&buf, v)
+	}
+
+	write(s.size())
+	write(s.Type)
+	write(s.Dev)
+	write(s.QID)
+	write(s.Mode)
+	write(s.ATime)
+	write(s.MTime)
+	write(s.Length)
+	write(s.Name)
+	write(s.UID)
+	write(s.GID)
+	write(s.MUID)
+
+	return buf.Bytes(), err
 }
 
-func (s *Stat) decode(d *decoder) {
+func (s *Stat) P9Decode(r io.Reader) (err error) {
 	var size uint16
-	d.Decode(&size)
+	err = proto.Read(r, &size)
+	if err != nil {
+		return err
+	}
 
-	r := d.r
-	d.r = &LimitedReader{
+	lr := &util.LimitedReader{
 		R: r,
 		N: uint32(size),
 		E: ErrLargeStat,
 	}
-	defer func() {
-		d.r = r
-	}()
 
-	d.Decode(&s.Type)
-	d.Decode(&s.Dev)
-	d.Decode(&s.QID)
-	d.Decode(&s.Mode)
-	d.Decode(&s.ATime)
-	d.Decode(&s.MTime)
-	d.Decode(&s.Length)
-	d.Decode(&s.Name)
-	d.Decode(&s.UID)
-	d.Decode(&s.GID)
-	d.Decode(&s.MUID)
+	read := func(v interface{}) {
+		if err != nil {
+			return
+		}
+
+		err = proto.Read(lr, v)
+	}
+
+	read(&s.Type)
+	read(&s.Dev)
+	read(&s.QID)
+	read(&s.Mode)
+	read(&s.ATime)
+	read(&s.MTime)
+	read(&s.Length)
+	read(&s.Name)
+	read(&s.UID)
+	read(&s.GID)
+	read(&s.MUID)
+
+	return err
 }
 
 // DirEntry is a smaller version of Stat that eliminates unnecessary
@@ -260,34 +284,34 @@ type StatChanges struct {
 	DirEntry
 }
 
-func (c StatChanges) Mode() (FileMode, bool) { // nolint
+func (c StatChanges) Mode() (FileMode, bool) {
 	return c.DirEntry.Mode, c.DirEntry.Mode != 0xFFFFFFFF
 }
 
-func (c StatChanges) ATime() (time.Time, bool) { // nolint
+func (c StatChanges) ATime() (time.Time, bool) {
 	return c.DirEntry.ATime, c.DirEntry.ATime.Unix() != -1
 }
 
-func (c StatChanges) MTime() (time.Time, bool) { // nolint
+func (c StatChanges) MTime() (time.Time, bool) {
 	return c.DirEntry.MTime, c.DirEntry.MTime.Unix() != -1
 }
 
-func (c StatChanges) Length() (uint64, bool) { // nolint
+func (c StatChanges) Length() (uint64, bool) {
 	return c.DirEntry.Length, c.DirEntry.Length != 0xFFFFFFFFFFFFFFFF
 }
 
-func (c StatChanges) Name() (string, bool) { // nolint
+func (c StatChanges) Name() (string, bool) {
 	return c.DirEntry.Name, c.DirEntry.Name != ""
 }
 
-func (c StatChanges) UID() (string, bool) { // nolint
+func (c StatChanges) UID() (string, bool) {
 	return c.DirEntry.UID, c.DirEntry.UID != ""
 }
 
-func (c StatChanges) GID() (string, bool) { // nolint
+func (c StatChanges) GID() (string, bool) {
 	return c.DirEntry.GID, c.DirEntry.GID != ""
 }
 
-func (c StatChanges) MUID() (string, bool) { // nolint
+func (c StatChanges) MUID() (string, bool) {
 	return c.DirEntry.MUID, c.DirEntry.MUID != ""
 }

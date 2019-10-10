@@ -2,11 +2,14 @@ package p9
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"path"
 	"sync"
 	"sync/atomic"
+
+	"github.com/DeedleFake/p9/internal/debug"
 )
 
 // FileSystem is an interface that allows high-level implementations
@@ -161,7 +164,7 @@ func FSHandler(fs FileSystem, msize uint32) MessageHandler {
 // to stderr if the p9debug build tag is set.
 func FSConnHandler(fs FileSystem, msize uint32) ConnHandler {
 	return ConnHandlerFunc(func() MessageHandler {
-		debugLog("Got new connection to FSConnHandler.\n")
+		debug.Log("Got new connection to FSConnHandler.\n")
 		return FSHandler(fs, msize)
 	})
 }
@@ -218,9 +221,9 @@ func (h *fsHandler) largeCount(count uint32) bool {
 	return IOHeaderSize+count > h.msize
 }
 
-func (h *fsHandler) version(msg *Tversion) Message {
+func (h *fsHandler) version(msg Tversion) interface{} {
 	if msg.Version != Version {
-		return &Rerror{
+		return Rerror{
 			Ename: ErrUnsupportedVersion.Error(),
 		}
 	}
@@ -229,16 +232,16 @@ func (h *fsHandler) version(msg *Tversion) Message {
 		h.msize = msg.Msize
 	}
 
-	return &Rversion{
+	return Rversion{
 		Msize:   h.msize,
 		Version: Version,
 	}
 }
 
-func (h *fsHandler) auth(msg *Tauth) Message {
+func (h *fsHandler) auth(msg Tauth) interface{} {
 	file, err := h.fs.Auth(msg.Uname, msg.Aname)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
@@ -249,7 +252,7 @@ func (h *fsHandler) auth(msg *Tauth) Message {
 
 	f.file = file
 
-	return &Rauth{
+	return Rauth{
 		AQID: QID{
 			Type: QTAuth,
 			Path: h.getNextPath(),
@@ -257,19 +260,19 @@ func (h *fsHandler) auth(msg *Tauth) Message {
 	}
 }
 
-func (h *fsHandler) flush(msg *Tflush) Message {
+func (h *fsHandler) flush(msg Tflush) interface{} {
 	// TODO: Implement this.
-	return &Rerror{
+	return Rerror{
 		Ename: "flush is not supported",
 	}
 }
 
-func (h *fsHandler) attach(msg *Tattach) Message {
+func (h *fsHandler) attach(msg Tattach) interface{} {
 	var afile File
 	if msg.AFID != NoFID {
 		tmp, ok := h.getFile(msg.AFID, false)
 		if !ok {
-			return &Rerror{
+			return Rerror{
 				Ename: "no such AFID",
 			}
 		}
@@ -281,21 +284,21 @@ func (h *fsHandler) attach(msg *Tattach) Message {
 
 	attach, err := h.fs.Attach(afile, msg.Uname, msg.Aname)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
 
 	qid, err := h.getQID(msg.Aname, attach)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
 
 	file, ok := h.getFile(msg.FID, true)
 	if ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "FID in use",
 		}
 	}
@@ -305,15 +308,15 @@ func (h *fsHandler) attach(msg *Tattach) Message {
 	file.path = msg.Aname
 	file.a = attach
 
-	return &Rattach{
+	return Rattach{
 		QID: qid,
 	}
 }
 
-func (h *fsHandler) walk(msg *Twalk) Message {
+func (h *fsHandler) walk(msg Twalk) interface{} {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "unknown FID",
 		}
 	}
@@ -330,12 +333,12 @@ func (h *fsHandler) walk(msg *Twalk) Message {
 		qid, err := h.getQID(next, a)
 		if err != nil {
 			if i == 0 {
-				return &Rerror{
+				return Rerror{
 					Ename: err.Error(),
 				}
 			}
 
-			return &Rwalk{
+			return Rwalk{
 				WQID: qids,
 			}
 		}
@@ -346,7 +349,7 @@ func (h *fsHandler) walk(msg *Twalk) Message {
 
 	file, ok = h.getFile(msg.NewFID, true)
 	if ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "FID in use",
 		}
 	}
@@ -356,15 +359,15 @@ func (h *fsHandler) walk(msg *Twalk) Message {
 	file.path = base
 	file.a = a
 
-	return &Rwalk{
+	return Rwalk{
 		WQID: qids,
 	}
 }
 
-func (h *fsHandler) open(msg *Topen) Message {
+func (h *fsHandler) open(msg Topen) interface{} {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "unknown FID",
 		}
 	}
@@ -372,14 +375,14 @@ func (h *fsHandler) open(msg *Topen) Message {
 	defer file.Unlock()
 
 	if file.file != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: "file already open",
 		}
 	}
 
 	f, err := file.a.Open(file.path, msg.Mode)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
@@ -387,7 +390,7 @@ func (h *fsHandler) open(msg *Topen) Message {
 
 	qid, err := h.getQID(file.path, file.a)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
@@ -397,16 +400,16 @@ func (h *fsHandler) open(msg *Topen) Message {
 		iounit = unit.IOUnit()
 	}
 
-	return &Ropen{
+	return Ropen{
 		QID:    qid,
 		IOUnit: iounit,
 	}
 }
 
-func (h *fsHandler) create(msg *Tcreate) Message {
+func (h *fsHandler) create(msg Tcreate) interface{} {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "unknown FID",
 		}
 	}
@@ -414,7 +417,7 @@ func (h *fsHandler) create(msg *Tcreate) Message {
 	defer file.Unlock()
 
 	if file.file != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: "file already open",
 		}
 	}
@@ -423,7 +426,7 @@ func (h *fsHandler) create(msg *Tcreate) Message {
 
 	f, err := file.a.Create(p, msg.Perm, msg.Mode)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
@@ -433,7 +436,7 @@ func (h *fsHandler) create(msg *Tcreate) Message {
 
 	qid, err := h.getQID(p, file.a)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
@@ -443,16 +446,16 @@ func (h *fsHandler) create(msg *Tcreate) Message {
 		iounit = unit.IOUnit()
 	}
 
-	return &Rcreate{
+	return Rcreate{
 		QID:    qid,
 		IOUnit: iounit,
 	}
 }
 
-func (h *fsHandler) read(msg *Tread) Message {
+func (h *fsHandler) read(msg Tread) interface{} {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "unknown FID",
 		}
 	}
@@ -460,20 +463,20 @@ func (h *fsHandler) read(msg *Tread) Message {
 	defer file.Unlock()
 
 	if file.file == nil {
-		return &Rerror{
+		return Rerror{
 			Ename: "file not open",
 		}
 	}
 
 	qid, err := h.getQID(file.path, file.a)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
 
 	if h.largeCount(msg.Count) {
-		return &Rerror{
+		return Rerror{
 			Ename: "read too large",
 		}
 	}
@@ -486,7 +489,7 @@ func (h *fsHandler) read(msg *Tread) Message {
 		if msg.Offset == 0 {
 			dir, err := file.file.Readdir()
 			if err != nil {
-				return &Rerror{
+				return Rerror{
 					Ename: err.Error(),
 				}
 			}
@@ -500,7 +503,7 @@ func (h *fsHandler) read(msg *Tread) Message {
 				return qid.Path, nil
 			})
 			if err != nil {
-				return &Rerror{
+				return Rerror{
 					Ename: err.Error(),
 				}
 			}
@@ -514,8 +517,8 @@ func (h *fsHandler) read(msg *Tread) Message {
 		// the specification, however, so it's probably not really an
 		// issue.
 		tmp, err := file.dir.Read(buf)
-		if (err != nil) && (err != io.EOF) {
-			return &Rerror{
+		if (err != nil) && !errors.Is(err, io.EOF) {
+			return Rerror{
 				Ename: err.Error(),
 			}
 		}
@@ -523,23 +526,23 @@ func (h *fsHandler) read(msg *Tread) Message {
 
 	default:
 		tmp, err := file.file.ReadAt(buf, int64(msg.Offset))
-		if (err != nil) && (err != io.EOF) {
-			return &Rerror{
+		if (err != nil) && !errors.Is(err, io.EOF) {
+			return Rerror{
 				Ename: err.Error(),
 			}
 		}
 		n = tmp
 	}
 
-	return &Rread{
+	return Rread{
 		Data: buf[:n],
 	}
 }
 
-func (h *fsHandler) write(msg *Twrite) Message {
+func (h *fsHandler) write(msg Twrite) interface{} {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "unknown FID",
 		}
 	}
@@ -547,29 +550,29 @@ func (h *fsHandler) write(msg *Twrite) Message {
 	defer file.RUnlock() // full lock like read() does.
 
 	if file.file == nil {
-		return &Rerror{
+		return Rerror{
 			Ename: "file not open",
 		}
 	}
 
 	n, err := file.file.WriteAt(msg.Data, int64(msg.Offset))
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
 
-	return &Rwrite{
+	return Rwrite{
 		Count: uint32(n),
 	}
 }
 
-func (h *fsHandler) clunk(msg *Tclunk) Message {
+func (h *fsHandler) clunk(msg Tclunk) interface{} {
 	defer h.fids.Delete(msg.FID)
 
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "unknown FID",
 		}
 	}
@@ -582,7 +585,7 @@ func (h *fsHandler) clunk(msg *Tclunk) Message {
 
 	err := file.file.Close()
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
@@ -590,26 +593,26 @@ func (h *fsHandler) clunk(msg *Tclunk) Message {
 	return new(Rclunk)
 }
 
-func (h *fsHandler) remove(msg *Tremove) Message {
+func (h *fsHandler) remove(msg Tremove) interface{} {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "unknown FID",
 		}
 	}
 	file.RLock()
 	defer file.RUnlock()
 
-	rsp := h.clunk(&Tclunk{
+	rsp := h.clunk(Tclunk{
 		FID: msg.FID,
 	})
-	if _, ok := rsp.(*Rerror); ok {
+	if _, ok := rsp.(Rerror); ok {
 		return rsp
 	}
 
 	err := file.a.Remove(file.path)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
@@ -617,10 +620,10 @@ func (h *fsHandler) remove(msg *Tremove) Message {
 	return new(Rremove)
 }
 
-func (h *fsHandler) stat(msg *Tstat) Message {
+func (h *fsHandler) stat(msg Tstat) interface{} {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "unknown FID",
 		}
 	}
@@ -629,27 +632,27 @@ func (h *fsHandler) stat(msg *Tstat) Message {
 
 	stat, err := file.a.Stat(file.path)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
 
 	qid, err := h.getQID(file.path, file.a)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
 
-	return &Rstat{
+	return Rstat{
 		Stat: stat.stat(qid.Path),
 	}
 }
 
-func (h *fsHandler) wstat(msg *Twstat) Message {
+func (h *fsHandler) wstat(msg Twstat) interface{} {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
-		return &Rerror{
+		return Rerror{
 			Ename: "unknown FID",
 		}
 	}
@@ -662,7 +665,7 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 
 	err := file.a.WriteStat(file.path, changes)
 	if err != nil {
-		return &Rerror{
+		return Rerror{
 			Ename: err.Error(),
 		}
 	}
@@ -684,56 +687,56 @@ func (h *fsHandler) wstat(msg *Twstat) Message {
 	return new(Rwstat)
 }
 
-func (h *fsHandler) HandleMessage(msg Message) (r Message) {
+func (h *fsHandler) HandleMessage(msg interface{}) (r interface{}) {
 	defer func() {
-		debugLog("%#v\n", r)
+		debug.Log("%#v\n", r)
 	}()
 
-	debugLog("%#v\n", msg)
+	debug.Log("%#v\n", msg)
 
 	switch msg := msg.(type) {
-	case *Tversion:
+	case Tversion:
 		return h.version(msg)
 
-	case *Tauth:
+	case Tauth:
 		return h.auth(msg)
 
-	case *Tflush:
+	case Tflush:
 		return h.flush(msg)
 
-	case *Tattach:
+	case Tattach:
 		return h.attach(msg)
 
-	case *Twalk:
+	case Twalk:
 		return h.walk(msg)
 
-	case *Topen:
+	case Topen:
 		return h.open(msg)
 
-	case *Tcreate:
+	case Tcreate:
 		return h.create(msg)
 
-	case *Tread:
+	case Tread:
 		return h.read(msg)
 
-	case *Twrite:
+	case Twrite:
 		return h.write(msg)
 
-	case *Tclunk:
+	case Tclunk:
 		return h.clunk(msg)
 
-	case *Tremove:
+	case Tremove:
 		return h.remove(msg)
 
-	case *Tstat:
+	case Tstat:
 		return h.stat(msg)
 
-	case *Twstat:
+	case Twstat:
 		return h.wstat(msg)
 
 	default:
-		return &Rerror{
-			Ename: fmt.Sprintf("Unexpected message type: %T", msg),
+		return Rerror{
+			Ename: fmt.Sprintf("unexpected message type: %T", msg),
 		}
 	}
 }
@@ -742,7 +745,7 @@ func (h *fsHandler) Close() error {
 	h.fids.Range(func(k, v interface{}) bool {
 		file := v.(*fsFile)
 		if file.file != nil {
-			file.file.Close() // nolint
+			file.file.Close()
 		}
 		return true
 	})

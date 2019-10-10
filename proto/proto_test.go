@@ -1,4 +1,4 @@
-package p9_test
+package proto_test
 
 import (
 	"bytes"
@@ -7,21 +7,21 @@ import (
 	"github.com/DeedleFake/p9"
 )
 
-func TestWriteMessage(t *testing.T) {
+func TestReadWrite(t *testing.T) {
 	var buf bytes.Buffer
 	err := p9.Proto().Send(&buf, 3, &p9.Tversion{
 		Msize:   9,
 		Version: "This is a test.",
 	})
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	t.Logf("(%x) %x", buf.Len(), buf.Bytes())
 	t.Logf("%s", buf.Bytes())
 
-	msg, tag, err := p9.Proto().Receive(&buf, uint32(buf.Len()))
+	msg, tag, err := p9.Proto().Receive(&buf, 0)
 	if err != nil {
-		t.Fatal(err)
+		t.Error(err)
 	}
 	t.Logf("%#v", msg)
 	t.Log(tag)
