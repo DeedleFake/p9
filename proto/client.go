@@ -22,9 +22,10 @@ type Client struct {
 	p Proto
 	c net.Conn
 
-	nextTag chan uint16
-	sentMsg chan clientMsg
-	recvMsg chan clientMsg
+	nextTag   chan uint16
+	sentMsg   chan clientMsg
+	recvMsg   chan clientMsg
+	cancelMsg chan uint16
 
 	m     sync.RWMutex
 	msize uint32
@@ -41,9 +42,10 @@ func NewClient(p Proto, c net.Conn) *Client {
 		p: p,
 		c: c,
 
-		nextTag: make(chan uint16),
-		sentMsg: make(chan clientMsg),
-		recvMsg: make(chan clientMsg),
+		nextTag:   make(chan uint16),
+		sentMsg:   make(chan clientMsg),
+		recvMsg:   make(chan clientMsg),
+		cancelMsg: make(chan uint16),
 
 		msize: 1024,
 	}
@@ -129,6 +131,9 @@ func (c *Client) coord(ctx context.Context) {
 			rcm <- cm.recv
 			delete(tags, cm.tag)
 
+		case tag := <-c.cancelMsg:
+			delete(tags, tag)
+
 		case c.nextTag <- nextTag:
 			for {
 				nextTag++
@@ -162,7 +167,7 @@ func (c *Client) SetMsize(size uint32) {
 // concurrently, and each will return when the response to that
 // request has been received.
 func (c *Client) Send(msg interface{}) (interface{}, error) {
-	debug.Log("-> %T\n", msg)
+	debug.Log("client -> %T\n", msg)
 
 	tag := NoTag
 	if _, ok := msg.(P9NoTag); !ok {
@@ -180,11 +185,12 @@ func (c *Client) Send(msg interface{}) (interface{}, error) {
 
 	err := c.p.Send(c.c, tag, msg)
 	if err != nil {
+		c.cancelMsg <- tag
 		return nil, err
 	}
 
 	rsp := <-ret
-	debug.Log("<- %T\n", rsp)
+	debug.Log("client <- %T\n", rsp)
 
 	if err, ok := rsp.(error); ok {
 		return nil, err
