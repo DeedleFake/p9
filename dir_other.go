@@ -6,9 +6,9 @@ import "os"
 
 func infoToEntry(fi os.FileInfo) DirEntry {
 	return DirEntry{
-		Mode:   ModeFromOS(fi.Mode()),
-		MTime:  fi.ModTime(),
-		Length: uint64(fi.Size()),
-		Name:   fi.Name(),
+		FileMode:  ModeFromOS(fi.Mode()),
+		MTime:     fi.ModTime(),
+		Length:    uint64(fi.Size()),
+		EntryName: fi.Name(),
 	}
 }
