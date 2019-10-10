@@ -71,7 +71,7 @@ var protocol = proto.NewProto(map[uint8]reflect.Type{
 	RwstatType:   reflect.TypeOf(Rwstat{}),
 })
 
-// Proto returns the protocol implementation for P9.
+// Proto returns the protocol implementation for 9P.
 func Proto() proto.Proto {
 	return protocol
 }
