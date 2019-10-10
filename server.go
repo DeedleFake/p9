@@ -1,6 +1,7 @@
 package p9
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -65,7 +66,7 @@ func handleMessages(c net.Conn, handler MessageHandler) {
 	for {
 		tmsg, tag, err := Proto().Receive(c, msize)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 
