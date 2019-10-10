@@ -79,6 +79,8 @@ type Tversion struct { // nolint
 	Version string
 }
 
+func (Tversion) P9NoTag() {}
+
 type Rversion struct { // nolint
 	Msize   uint32
 	Version string

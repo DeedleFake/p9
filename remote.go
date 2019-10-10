@@ -25,64 +25,13 @@ type Remote struct {
 	pos uint64
 }
 
-// Auth requests an auth file from the server, returning a Remote
-// representing it or an error if one occurred.
-func (c *Client) Auth(user, aname string) (*Remote, error) {
-	fid := <-c.nextFID
-
-	rsp, err := c.Send(Tauth{
-		AFID:  fid,
-		Uname: user,
-		Aname: aname,
-	})
-	if err != nil {
-		return nil, err
-	}
-	rauth := rsp.(Rauth)
-
-	return &Remote{
-		client: c,
-		fid:    fid,
-		qid:    rauth.AQID,
-	}, nil
-}
-
-// Attach attaches to a filesystem provided by the connected server
-// with the given attributes. If no authentication has been done,
-// afile may be nil.
-func (c *Client) Attach(afile *Remote, user, aname string) (*Remote, error) {
-	fid := <-c.nextFID
-
-	afid := NoFID
-	if afile != nil {
-		afid = afile.fid
-	}
-
-	rsp, err := c.Send(Tattach{
-		FID:   fid,
-		AFID:  afid,
-		Uname: user,
-		Aname: aname,
-	})
-	if err != nil {
-		return nil, err
-	}
-	attach := rsp.(Rattach)
-
-	return &Remote{
-		client: c,
-		fid:    fid,
-		qid:    attach.QID,
-	}, nil
-}
-
 // Type returns the type of the file represented by the Remote.
 func (file *Remote) Type() QIDType {
 	return file.qid.Type
 }
 
 func (file *Remote) walk(p string) (*Remote, error) {
-	fid := <-file.client.nextFID
+	fid := file.client.nextFID()
 
 	w := []string{path.Clean(p)}
 	if w[0] != "/" {
@@ -238,10 +187,7 @@ func (file *Remote) Read(buf []byte) (int, error) {
 }
 
 func (file *Remote) maxBufSize() int {
-	file.client.m.RLock()
-	defer file.client.m.RUnlock()
-
-	return int(file.client.msize - IOHeaderSize)
+	return int(file.client.Msize() - IOHeaderSize)
 }
 
 func (file *Remote) readPart(buf []byte, off int64) (int, error) {
