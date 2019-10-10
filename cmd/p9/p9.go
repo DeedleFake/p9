@@ -136,6 +136,10 @@ func parseAddr(addr string) (network, host, port string) {
 		}
 	}()
 
+	if (len(addr) > 0) && (addr[0] == '/') {
+		return "unix", addr, ""
+	}
+
 	parts := strings.SplitN(addr, "!", 3)
 	switch len(parts) {
 	case 0:
