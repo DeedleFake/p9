@@ -17,6 +17,7 @@ import (
 // handles message tags, properly blocking until a matching tag
 // response has been received.
 type Client struct {
+	done   chan struct{}
 	cancel func()
 
 	p Proto
@@ -36,6 +37,7 @@ func NewClient(p Proto, c net.Conn) *Client {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	client := &Client{
+		done:   make(chan struct{}),
 		cancel: cancel,
 
 		p: p,
@@ -109,13 +111,14 @@ func (c *Client) reader(ctx context.Context) {
 
 // coord coordinates between Send calls and the reader.
 func (c *Client) coord(ctx context.Context) {
+	defer close(c.done)
+
 	var nextTag uint16
 	tags := make(map[uint16]chan interface{})
 
 	for {
 		select {
 		case <-ctx.Done():
-			close(c.nextTag)
 			return
 
 		case cm := <-c.sentMsg:
@@ -165,31 +168,44 @@ func (c *Client) Send(msg interface{}) (interface{}, error) {
 
 	tag := NoTag
 	if _, ok := msg.(P9NoTag); !ok {
-		tag, ok = <-c.nextTag
-		if !ok {
-			panic("client closed")
+		select {
+		case <-c.done:
+			return nil, ErrClientClosed
+		case tag = <-c.nextTag:
 		}
 	}
 
 	ret := make(chan interface{}, 1)
-	c.sentMsg <- clientMsg{
+	select {
+	case <-c.done:
+		return nil, ErrClientClosed
+
+	case c.sentMsg <- clientMsg{
 		tag: tag,
 		ret: ret,
+	}:
 	}
 
 	err := c.p.Send(c.c, tag, msg)
 	if err != nil {
-		c.cancelMsg <- tag
+		select {
+		case <-c.done:
+		case c.cancelMsg <- tag:
+		}
 		return nil, err
 	}
 
-	rsp := <-ret
-	debug.Log("client <- %T\n", rsp)
+	select {
+	case <-c.done:
+		return nil, ErrClientClosed
+	case rsp := <-ret:
+		debug.Log("client <- %T\n", rsp)
 
-	if err, ok := rsp.(error); ok {
-		return nil, err
+		if err, ok := rsp.(error); ok {
+			return nil, err
+		}
+		return rsp, nil
 	}
-	return rsp, nil
 }
 
 // Sometimes I think that some type of tuples would be nice...
