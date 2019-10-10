@@ -126,9 +126,15 @@ func (c *Client) coord(ctx context.Context) {
 			}
 
 			rcm <- cm.recv
+			delete(tags, cm.tag)
 
 		case c.nextTag <- nextTag:
-			nextTag++
+			for {
+				nextTag++
+				if _, ok := tags[nextTag]; !ok {
+					break
+				}
+			}
 		}
 	}
 }
@@ -155,7 +161,10 @@ func (c *Client) Send(msg interface{}) (interface{}, error) {
 
 	tag := NoTag
 	if _, ok := msg.(P9NoTag); !ok {
-		tag = <-c.nextTag
+		tag, ok = <-c.nextTag
+		if !ok {
+			panic("client closed")
+		}
 	}
 
 	ret := make(chan interface{}, 1)
