@@ -8,6 +8,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	"github.com/DeedleFake/p9/internal/debug"
 )
 
 var (
@@ -155,7 +157,7 @@ func (c *Client) coord(ctx context.Context) {
 // concurrently, and each will return when the response to that
 // request has been received.
 func (c *Client) Send(msg interface{}) (interface{}, error) {
-	debugLog("-> %T\n", msg)
+	debug.Log("-> %T\n", msg)
 
 	tag := NoTag
 	if _, ok := msg.(Tversion); !ok {
@@ -174,7 +176,7 @@ func (c *Client) Send(msg interface{}) (interface{}, error) {
 	}
 
 	rsp := <-ret
-	debugLog("<- %T\n", rsp)
+	debug.Log("<- %T\n", rsp)
 
 	if err, ok := rsp.(Rerror); ok {
 		return nil, err

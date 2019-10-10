@@ -7,6 +7,8 @@ import (
 	"path"
 	"sync"
 	"sync/atomic"
+
+	"github.com/DeedleFake/p9/internal/debug"
 )
 
 // FileSystem is an interface that allows high-level implementations
@@ -161,7 +163,7 @@ func FSHandler(fs FileSystem, msize uint32) MessageHandler {
 // to stderr if the p9debug build tag is set.
 func FSConnHandler(fs FileSystem, msize uint32) ConnHandler {
 	return ConnHandlerFunc(func() MessageHandler {
-		debugLog("Got new connection to FSConnHandler.\n")
+		debug.Log("Got new connection to FSConnHandler.\n")
 		return FSHandler(fs, msize)
 	})
 }
@@ -686,10 +688,10 @@ func (h *fsHandler) wstat(msg Twstat) interface{} {
 
 func (h *fsHandler) HandleMessage(msg interface{}) (r interface{}) {
 	defer func() {
-		debugLog("%#v\n", r)
+		debug.Log("%#v\n", r)
 	}()
 
-	debugLog("%#v\n", msg)
+	debug.Log("%#v\n", msg)
 
 	switch msg := msg.(type) {
 	case Tversion:
