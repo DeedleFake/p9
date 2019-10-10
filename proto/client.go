@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DeedleFake/p9/internal/debug"
@@ -27,7 +27,6 @@ type Client struct {
 	recvMsg   chan clientMsg
 	cancelMsg chan uint16
 
-	m     sync.RWMutex
 	msize uint32
 }
 
@@ -148,18 +147,13 @@ func (c *Client) coord(ctx context.Context) {
 // Msize returns the maxiumum size of a message. This does not perform
 // any communication with the server.
 func (c *Client) Msize() uint32 {
-	c.m.RLock()
-	defer c.m.RUnlock()
-
-	return c.msize
+	return atomic.LoadUint32(&c.msize)
 }
 
 // SetMsize sets the maximum size of a message. This does not perform
 // any communication with the server.
 func (c *Client) SetMsize(size uint32) {
-	c.m.Lock()
-	c.msize = size
-	c.m.Unlock()
+	atomic.StoreUint32(&c.msize, size)
 }
 
 // Send sends a message to the server, blocking until a response has
