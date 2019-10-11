@@ -19,7 +19,9 @@ func Size(v interface{}) (uint32, error) {
 	return e.n, e.err
 }
 
-// Write encodes and writes a message to w.
+// Write encodes and writes a message to w. It does not perform any
+// buffering. It is the caller's responsibility to ensure that
+// encoding does not interleave with other usages of w.
 func Write(w io.Writer, v interface{}) error {
 	e := &encoder{w: w}
 	e.mode = e.write
