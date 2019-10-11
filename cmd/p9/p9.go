@@ -124,44 +124,36 @@ func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 	return f(a)
 }
 
-func parseAddr(addr string) (network, host, port string) {
-	defer func() {
-		if (len(host) > 0) && (host[0] == '$') {
-			network, host, port = getNamespaceHost(network, host, port)
-		}
+func parseAddr(addr string) (network, address string) {
+	switch {
+	case strings.HasPrefix(addr, "$"):
+		return getNamespace(addr[1:])
 
-		switch port {
-		case "9fs", "9p":
-			port = StandardPort
-		}
-	}()
-
-	if (len(addr) > 0) && (addr[0] == '/') {
-		return "unix", addr, ""
+	case strings.HasPrefix(addr, "./"), strings.HasPrefix(addr, "/"):
+		return "unix", addr
 	}
 
-	parts := strings.SplitN(addr, "!", 3)
+	parts := strings.SplitN(addr, ":", 2)
+	if len(parts) == 2 {
+		if (parts[1] == "9p") || (parts[1] == "9fs") {
+			parts[1] = StandardPort
+		}
+
+		return "tcp", strings.Join(parts, ":")
+	}
+
+	parts = strings.SplitN(addr, "!", 3)
 	switch len(parts) {
-	case 0:
-		return "tcp", "localhost", StandardPort
-
-	case 1:
-		port = StandardPort
-		sub := strings.SplitN(parts[0], ":", 2)
-		host = sub[0]
-		if len(sub) == 2 {
-			port = sub[1]
-		}
-		return "tcp", host, port
-
 	case 2:
-		return parts[0], parts[1], ""
-
+		return parts[0], parts[1] + ":" + StandardPort
 	case 3:
-		return parts[0], parts[1], parts[2]
+		if (parts[2] == "9p") || (parts[2] == "9fs") {
+			parts[2] = StandardPort
+		}
+		return parts[0], strings.Join(parts[1:], ":")
 	}
 
-	panic("This should never be reached.")
+	return "tcp", addr + ":" + StandardPort
 }
 
 type GlobalOptions struct {
@@ -187,7 +179,7 @@ func main() {
 	flag.StringVar(
 		&options.Address,
 		"addr",
-		"localhost:"+StandardPort,
+		"",
 		"When acting as a server, the address to bind to. When acting as a client, the address to connect to.",
 	)
 	flag.UintVar(
@@ -201,15 +193,7 @@ func main() {
 	help := flag.Bool("help", false, "Show this help.")
 	flag.Parse()
 
-	n, a, p := parseAddr(options.Address)
-	if (p == "") && strings.HasPrefix(a, "tcp") {
-		p = StandardPort
-	}
-	options.Network = n
-	options.Address = a
-	if p != "" {
-		options.Address += ":" + p
-	}
+	options.Network, options.Address = parseAddr(options.Address)
 
 	runCommand := func(c Command) {
 		err := c.Run(options, flag.Args())
