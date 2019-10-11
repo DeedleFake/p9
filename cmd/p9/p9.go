@@ -106,7 +106,7 @@ func (versionCmd) Run(options GlobalOptions, args []string) error {
 func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 	c, err := p9.Dial(options.Network, options.Address)
 	if err != nil {
-		return fmt.Errorf("dial %q, %q: %w", options.Network, options.Address, err)
+		return err
 	}
 	defer c.Close()
 
