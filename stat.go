@@ -15,7 +15,7 @@ import (
 var (
 	// ErrLargeStat is returned during decoding when a stat is larger
 	// than its own declared size.
-	ErrLargeStat = errors.New("stat larger that declared size")
+	ErrLargeStat = errors.New("stat larger than declared size")
 )
 
 // FileMode stores permission and type information about a file or
