@@ -2,7 +2,6 @@ package p9
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"path"
@@ -524,7 +523,7 @@ func (h *fsHandler) read(msg Tread) interface{} {
 		// the specification, however, so it's probably not really an
 		// issue.
 		tmp, err := file.dir.Read(buf)
-		if (err != nil) && !errors.Is(err, io.EOF) {
+		if (err != nil) && (err != io.EOF) {
 			return Rerror{
 				Ename: err.Error(),
 			}
@@ -533,7 +532,7 @@ func (h *fsHandler) read(msg Tread) interface{} {
 
 	default:
 		tmp, err := file.file.ReadAt(buf, int64(msg.Offset))
-		if (err != nil) && !errors.Is(err, io.EOF) {
+		if (err != nil) && (err != io.EOF) {
 			return Rerror{
 				Ename: err.Error(),
 			}

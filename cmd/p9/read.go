@@ -9,6 +9,7 @@ import (
 	"path"
 
 	"github.com/DeedleFake/p9"
+	"github.com/DeedleFake/p9/internal/util"
 )
 
 type readCmd struct {
@@ -36,7 +37,7 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 	fset.BoolVar(&cmd.tar, "tar", false, "Output files as tar.")
 	err := fset.Parse(args[1:])
 	if err != nil {
-		return fmt.Errorf("parse flags: %v", err)
+		return util.Errorf("parse flags: %v", err)
 	}
 
 	args = fset.Args()
@@ -51,7 +52,7 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 
 		_, err = io.Copy(os.Stdout, f)
 		if err != nil {
-			return fmt.Errorf("read %q: %w", arg, err)
+			return util.Errorf("read %q: %w", arg, err)
 		}
 
 		return nil
@@ -66,7 +67,7 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 
 			fi, err := f.Stat("")
 			if err != nil {
-				return fmt.Errorf("stat %q: %w", arg, err)
+				return util.Errorf("stat %q: %w", arg, err)
 			}
 
 			switch {
@@ -75,13 +76,13 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 			case fi.IsDir():
 				children, err := f.Readdir()
 				if err != nil {
-					return fmt.Errorf("read dir %q: %w", arg, err)
+					return util.Errorf("read dir %q: %w", arg, err)
 				}
 
 				for _, c := range children {
 					cf, err := f.Open(c.EntryName, p9.OREAD)
 					if err != nil {
-						return fmt.Errorf("open %q: %w", path.Join(arg, c.EntryName), err)
+						return util.Errorf("open %q: %w", path.Join(arg, c.EntryName), err)
 					}
 
 					err = writeFile(path.Join(arg, c.EntryName), cf)
@@ -93,7 +94,7 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 			default:
 				hdr, err := tar.FileInfoHeader(fi, "")
 				if err != nil {
-					return fmt.Errorf("file info header for %q: %w", arg, err)
+					return util.Errorf("file info header for %q: %w", arg, err)
 				}
 				hdr.Name = arg
 				hdr.Uname = fi.UID
@@ -101,12 +102,12 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 
 				err = out.WriteHeader(hdr)
 				if err != nil {
-					return fmt.Errorf("write header for %q: %w", arg, err)
+					return util.Errorf("write header for %q: %w", arg, err)
 				}
 
 				_, err = io.Copy(out, f)
 				if err != nil {
-					return fmt.Errorf("read %q: %w", arg, err)
+					return util.Errorf("read %q: %w", arg, err)
 				}
 			}
 
@@ -118,7 +119,7 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 		for _, arg := range args {
 			f, err := a.Open(arg, p9.OREAD)
 			if err != nil {
-				return fmt.Errorf("open %q: %w", arg, err)
+				return util.Errorf("open %q: %w", arg, err)
 			}
 
 			err = writeFile(arg, f)

@@ -3,11 +3,12 @@ package p9
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"io"
 	"path"
 	"strings"
 	"sync"
+
+	"github.com/DeedleFake/p9/internal/util"
 )
 
 // Remote provides a file-like interface for performing operations on
@@ -172,7 +173,7 @@ func (file *Remote) Seek(offset int64, whence int) (int64, error) {
 		return npos, nil
 	}
 
-	panic(fmt.Errorf("Invalid whence: %v", whence))
+	panic(util.Errorf("Invalid whence: %v", whence))
 }
 
 // Read reads from the file at the internally-tracked offset. For more

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DeedleFake/p9"
+	"github.com/DeedleFake/p9/internal/util"
 )
 
 type lsCmd struct {
@@ -36,7 +37,7 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 	fset.BoolVar(&cmd.showDetails, "l", false, "Show details.")
 	err := fset.Parse(args[1:])
 	if err != nil {
-		return fmt.Errorf("parse flags: %w", err)
+		return util.Errorf("parse flags: %w", err)
 	}
 
 	args = fset.Args()
@@ -52,13 +53,13 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 
 			d, err := a.Open(arg, p9.OREAD)
 			if err != nil {
-				return fmt.Errorf("open %q: %w", arg, err)
+				return util.Errorf("open %q: %w", arg, err)
 			}
 			defer d.Close()
 
 			fi, err := d.Stat("")
 			if err != nil {
-				return fmt.Errorf("stat %q: %w", arg, err)
+				return util.Errorf("stat %q: %w", arg, err)
 			}
 
 			if !fi.IsDir() {
@@ -68,7 +69,7 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 
 			entries, err := d.Readdir()
 			if err != nil {
-				return fmt.Errorf("read dir %q: %w", arg, err)
+				return util.Errorf("read dir %q: %w", arg, err)
 			}
 			sort.Slice(entries, func(i1, i2 int) bool {
 				return entries[i1].EntryName < entries[i2].EntryName

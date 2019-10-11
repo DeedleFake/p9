@@ -2,6 +2,20 @@
 
 package main
 
-func getNamespaceHost(network, host, port string) (string, string, string) {
-	return network, host, port
+import (
+	"os"
+	"os/user"
+	"path/filepath"
+)
+
+func getNamespace(name string) (network, addr string) {
+	u, err := user.Current()
+	if err != nil {
+		panic(err)
+	}
+
+	nsdir := filepath.Join(os.TempDir(), "ns."+u.Username+".:0")
+	os.MkdirAll(nsdir, 0700)
+
+	return "unix", filepath.Join(nsdir, name)
 }

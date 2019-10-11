@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/DeedleFake/p9"
+	"github.com/DeedleFake/p9/internal/util"
 )
 
 type statCmd struct{}
@@ -33,7 +34,7 @@ func (cmd *statCmd) Run(options GlobalOptions, args []string) error {
 	format := fset.String("f", "text", "Output format. Supported formats are text and json.")
 	err := fset.Parse(args[1:])
 	if err != nil {
-		return fmt.Errorf("parse flags: %w", err)
+		return util.Errorf("parse flags: %w", err)
 	}
 
 	p := map[string]func(p9.DirEntry){
@@ -60,7 +61,7 @@ func (cmd *statCmd) Run(options GlobalOptions, args []string) error {
 		for i, arg := range args {
 			fi, err := a.Stat(arg)
 			if err != nil {
-				return fmt.Errorf("stat %q: %w", arg, err)
+				return util.Errorf("stat %q: %w", arg, err)
 			}
 
 			p(fi)

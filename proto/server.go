@@ -1,7 +1,6 @@
 package proto
 
 import (
-	"errors"
 	"io"
 	"log"
 	"net"
@@ -70,7 +69,7 @@ func handleMessages(c net.Conn, p Proto, handler MessageHandler) {
 	for {
 		tmsg, tag, err := p.Receive(c, msize)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if err == io.EOF {
 				return
 			}
 
