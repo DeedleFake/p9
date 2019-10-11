@@ -78,19 +78,11 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 		E: ErrLargeMessage,
 	}
 
-	read := func(v interface{}) {
-		if err != nil {
-			return
-		}
-
-		err = Read(lr, v)
-		if err != nil {
-			err = util.Errorf("receive: %w", err)
-		}
-	}
-
 	var msgType uint8
-	read(&msgType)
+	err = Read(lr, &msgType)
+	if err != nil {
+		return nil, NoTag, util.Errorf("receive: failed to read message type: %w", err)
+	}
 
 	t := p.TypeFromID(msgType)
 	if t == nil {
@@ -102,10 +94,16 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 	}
 
 	tag = NoTag
-	read(&tag)
+	err = Read(lr, &tag)
+	if err != nil {
+		return nil, tag, util.Errorf("receive: failed to read tag: %w", err)
+	}
 
 	m := reflect.New(t)
-	read(m.Interface())
+	err = Read(lr, m.Interface())
+	if err != nil {
+		return nil, tag, util.Errorf("receive %v: %w", m.Type().Elem(), err)
+	}
 
 	return m.Elem().Interface(), tag, err
 }
@@ -125,13 +123,13 @@ func (p Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
 
 		err = Write(w, v)
 		if err != nil {
-			err = util.Errorf("send: %w", err)
+			err = util.Errorf("send %T: %w", msg, err)
 		}
 	}
 
 	n, err := Size(msg)
 	if err != nil {
-		return util.Errorf("send: %w", err)
+		return util.Errorf("send %T: %w", msg, err)
 	}
 
 	write(4 + 1 + 2 + n)

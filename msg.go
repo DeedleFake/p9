@@ -237,5 +237,43 @@ type Twstat struct {
 	Stat Stat
 }
 
+func (stat Twstat) P9Encode() ([]byte, error) {
+	var buf bytes.Buffer
+
+	err := proto.Write(&buf, stat.FID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = proto.Write(&buf, stat.Stat.size()+2)
+	if err != nil {
+		return nil, err
+	}
+
+	err = proto.Write(&buf, stat.Stat)
+	return buf.Bytes(), err
+}
+
+func (stat *Twstat) P9Decode(r io.Reader) error {
+	err := proto.Read(r, &stat.FID)
+	if err != nil {
+		return err
+	}
+
+	var size uint16
+	err = proto.Read(r, &size)
+	if err != nil {
+		return err
+	}
+
+	r = &util.LimitedReader{
+		R: r,
+		N: uint32(size),
+		E: ErrLargeStat,
+	}
+
+	return proto.Read(r, &stat.Stat)
+}
+
 type Rwstat struct {
 }
