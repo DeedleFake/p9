@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/DeedleFake/p9"
+	"github.com/DeedleFake/p9/internal/util"
 )
 
 type writeCmd struct{}
@@ -37,7 +38,7 @@ func (cmd *writeCmd) Run(options GlobalOptions, args []string) error {
 	)
 	err := fset.Parse(args[1:])
 	if err != nil {
-		return fmt.Errorf("parse flags: %v", err)
+		return util.Errorf("parse flags: %v", err)
 	}
 
 	args = fset.Args()
@@ -65,20 +66,20 @@ func (cmd *writeCmd) Run(options GlobalOptions, args []string) error {
 
 		f, err := open()
 		if err != nil {
-			return fmt.Errorf("open %q: %v", args[0], err)
+			return util.Errorf("open %q: %v", args[0], err)
 		}
 		defer f.Close()
 
 		if *app {
 			_, err := f.Seek(0, io.SeekEnd)
 			if err != nil {
-				return fmt.Errorf("seek %q: %v", args[0], err)
+				return util.Errorf("seek %q: %v", args[0], err)
 			}
 		}
 
 		_, err = io.Copy(f, os.Stdin)
 		if err != nil {
-			return fmt.Errorf("write %q: %v", args[0], err)
+			return util.Errorf("write %q: %v", args[0], err)
 		}
 
 		return nil

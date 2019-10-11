@@ -4,7 +4,6 @@ package proto
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"reflect"
 
@@ -66,11 +65,11 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 	var size uint32
 	err = Read(r, &size)
 	if err != nil {
-		return nil, NoTag, fmt.Errorf("receive: %w", err)
+		return nil, NoTag, util.Errorf("receive: %w", err)
 	}
 
 	if (msize > 0) && (size > msize) {
-		return nil, NoTag, fmt.Errorf("receive: %w", ErrLargeMessage)
+		return nil, NoTag, util.Errorf("receive: %w", ErrLargeMessage)
 	}
 
 	lr := &util.LimitedReader{
@@ -86,7 +85,7 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 
 		err = Read(lr, v)
 		if err != nil {
-			err = fmt.Errorf("receive: %w", err)
+			err = util.Errorf("receive: %w", err)
 		}
 	}
 
@@ -99,7 +98,7 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 			return nil, NoTag, err
 		}
 
-		return nil, NoTag, fmt.Errorf("receive: invalid message type: %v", msgType)
+		return nil, NoTag, util.Errorf("receive: invalid message type: %v", msgType)
 	}
 
 	tag = NoTag
@@ -116,7 +115,7 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 func (p Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
 	msgType, ok := p.IDFromType(reflect.Indirect(reflect.ValueOf(msg)).Type())
 	if !ok {
-		return fmt.Errorf("send: invalid message type: %T", msg)
+		return util.Errorf("send: invalid message type: %T", msg)
 	}
 
 	write := func(v interface{}) {
@@ -126,13 +125,13 @@ func (p Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
 
 		err = Write(w, v)
 		if err != nil {
-			err = fmt.Errorf("send: %w", err)
+			err = util.Errorf("send: %w", err)
 		}
 	}
 
 	n, err := Size(msg)
 	if err != nil {
-		return fmt.Errorf("send: %w", err)
+		return util.Errorf("send: %w", err)
 	}
 
 	write(4 + 1 + 2 + n)

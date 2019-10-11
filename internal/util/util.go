@@ -1,6 +1,7 @@
 package util
 
 import (
+	"fmt"
 	"io"
 )
 
@@ -35,4 +36,17 @@ func (lr *LimitedReader) Read(buf []byte) (int, error) {
 	n, err := lr.R.Read(buf)
 	lr.N -= uint32(n)
 	return n, err
+}
+
+// Errorf is a variant of fmt.Errorf that returns an error being
+// wrapped directly if it is one of a number of specific values, such
+// as nil or io.EOF.
+func Errorf(str string, args ...interface{}) error {
+	for _, arg := range args {
+		if arg == io.EOF {
+			return arg.(error)
+		}
+	}
+
+	return fmt.Errorf(str, args...)
 }

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/DeedleFake/p9"
+	"github.com/DeedleFake/p9/internal/util"
 )
 
 const StandardPort = "564"
@@ -112,12 +113,12 @@ func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 
 	_, err = c.Handshake(uint32(options.MSize))
 	if err != nil {
-		return fmt.Errorf("handshake: %w", err)
+		return util.Errorf("handshake: %w", err)
 	}
 
 	a, err := c.Attach(nil, options.UName, options.AName)
 	if err != nil {
-		return fmt.Errorf("attach %q: %w", options.AName, err)
+		return util.Errorf("attach %q: %w", options.AName, err)
 	}
 	defer a.Close()
 

@@ -1,7 +1,6 @@
 package p9
 
 import (
-	"errors"
 	"io"
 
 	"github.com/DeedleFake/p9/proto"
@@ -20,7 +19,7 @@ func ReadDir(r io.Reader) ([]DirEntry, error) {
 		var stat Stat
 		err := proto.Read(r, &stat)
 		if err != nil {
-			if errors.Is(err, io.EOF) {
+			if err == io.EOF {
 				err = nil
 			}
 			return entries, err

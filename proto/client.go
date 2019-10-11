@@ -2,7 +2,6 @@ package proto
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log"
 	"net"
@@ -90,7 +89,7 @@ func (c *Client) reader(ctx context.Context) {
 
 		msg, tag, err := c.p.Receive(c.c, c.Msize())
 		if err != nil {
-			if (ctx.Err() != nil) || errors.Is(err, io.EOF) {
+			if (ctx.Err() != nil) || (err == io.EOF) {
 				return
 			}
 

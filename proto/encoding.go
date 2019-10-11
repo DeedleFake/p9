@@ -2,11 +2,12 @@ package proto
 
 import (
 	"encoding/binary"
-	"fmt"
 	"io"
 	"reflect"
 	"time"
 	"unsafe"
+
+	"github.com/DeedleFake/p9/internal/util"
 )
 
 // Size returns the size of a message after encoding.
@@ -101,7 +102,7 @@ func (e *encoder) encode(v reflect.Value) {
 		}
 
 	default:
-		e.err = fmt.Errorf("invalid type: %T", v)
+		e.err = util.Errorf("invalid type: %T", v)
 	}
 }
 
@@ -173,7 +174,7 @@ func (d *decoder) decode(v reflect.Value) {
 		}
 
 	default:
-		d.err = fmt.Errorf("invalid type: %T", v)
+		d.err = util.Errorf("invalid type: %T", v)
 	}
 }
 
