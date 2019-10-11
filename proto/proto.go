@@ -3,9 +3,11 @@
 package proto
 
 import (
+	"bytes"
 	"errors"
 	"io"
 	"reflect"
+	"sync"
 
 	"github.com/DeedleFake/p9/internal/util"
 )
@@ -24,6 +26,12 @@ const (
 	// NoTag is a special tag that is used when a tag is unimportant.
 	NoTag uint16 = 0xFFFF
 )
+
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return new(bytes.Buffer)
+	},
+}
 
 // Proto represents a protocol. It maps between message type IDs and
 // the Go types that those IDs correspond to.
@@ -112,7 +120,23 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 
 // Send writes a message to w with the given tag. It returns any
 // errors that occur.
+//
+// Encoded messages are buffered locally before sending to ensure that
+// pieces of a message don't get mixed with another one.
 func (p Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
+	buf := bufPool.Get().(*bytes.Buffer)
+	defer func() {
+		if err == nil {
+			_, err = io.Copy(w, buf)
+			if err != nil {
+				err = util.Errorf("send: %w", err)
+			}
+		}
+
+		buf.Reset()
+		bufPool.Put(buf)
+	}()
+
 	msgType, ok := p.IDFromType(reflect.Indirect(reflect.ValueOf(msg)).Type())
 	if !ok {
 		return util.Errorf("send: invalid message type: %T", msg)
@@ -123,7 +147,7 @@ func (p Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
 			return
 		}
 
-		err = Write(w, v)
+		err = Write(buf, v)
 		if err != nil {
 			err = util.Errorf("send: %w", err)
 		}
