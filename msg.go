@@ -81,7 +81,7 @@ type Tversion struct {
 	Version string
 }
 
-func (Tversion) P9NoTag() {}
+func (*Tversion) P9NoTag() {}
 
 type Rversion struct {
 	Msize   uint32
@@ -119,7 +119,7 @@ type Rerror struct {
 	Ename string
 }
 
-func (msg Rerror) Error() string {
+func (msg *Rerror) Error() string {
 	return msg.Ename
 }
 
@@ -204,7 +204,7 @@ type Rstat struct {
 	Stat Stat
 }
 
-func (stat Rstat) P9Encode() ([]byte, error) {
+func (stat *Rstat) P9Encode() ([]byte, error) {
 	var buf bytes.Buffer
 
 	err := proto.Write(&buf, stat.Stat.size()+2)
@@ -237,7 +237,7 @@ type Twstat struct {
 	Stat Stat
 }
 
-func (stat Twstat) P9Encode() ([]byte, error) {
+func (stat *Twstat) P9Encode() ([]byte, error) {
 	var buf bytes.Buffer
 
 	err := proto.Write(&buf, stat.FID)

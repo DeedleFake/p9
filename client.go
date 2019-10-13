@@ -50,7 +50,7 @@ func (c *Client) nextFID() uint32 {
 // allowed message size. A handshake must be performed before any
 // other request types may be sent.
 func (c *Client) Handshake(msize uint32) (uint32, error) {
-	rsp, err := c.Send(Tversion{
+	rsp, err := c.Send(&Tversion{
 		Msize:   msize,
 		Version: Version,
 	})
@@ -58,7 +58,7 @@ func (c *Client) Handshake(msize uint32) (uint32, error) {
 		return 0, err
 	}
 
-	version := rsp.(Rversion)
+	version := rsp.(*Rversion)
 	if version.Version != Version {
 		return 0, ErrUnsupportedVersion
 	}
@@ -73,7 +73,7 @@ func (c *Client) Handshake(msize uint32) (uint32, error) {
 func (c *Client) Auth(user, aname string) (*Remote, error) {
 	fid := c.nextFID()
 
-	rsp, err := c.Send(Tauth{
+	rsp, err := c.Send(&Tauth{
 		AFID:  fid,
 		Uname: user,
 		Aname: aname,
@@ -81,7 +81,7 @@ func (c *Client) Auth(user, aname string) (*Remote, error) {
 	if err != nil {
 		return nil, err
 	}
-	rauth := rsp.(Rauth)
+	rauth := rsp.(*Rauth)
 
 	return &Remote{
 		client: c,
@@ -101,7 +101,7 @@ func (c *Client) Attach(afile *Remote, user, aname string) (*Remote, error) {
 		afid = afile.fid
 	}
 
-	rsp, err := c.Send(Tattach{
+	rsp, err := c.Send(&Tattach{
 		FID:   fid,
 		AFID:  afid,
 		Uname: user,
@@ -110,7 +110,7 @@ func (c *Client) Attach(afile *Remote, user, aname string) (*Remote, error) {
 	if err != nil {
 		return nil, err
 	}
-	attach := rsp.(Rattach)
+	attach := rsp.(*Rattach)
 
 	return &Remote{
 		client: c,
