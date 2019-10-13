@@ -88,7 +88,7 @@ type Rversion struct {
 	Version string
 }
 
-func (r Rversion) P9Msize() uint32 {
+func (r *Rversion) P9Msize() uint32 {
 	return r.Msize
 }
 
