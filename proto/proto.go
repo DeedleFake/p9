@@ -42,13 +42,19 @@ type Proto struct {
 
 // NewProto builds a Proto from the given one-way mapping.
 func NewProto(mapping map[uint8]reflect.Type) Proto {
+	rmap := make(map[uint8]reflect.Type, len(mapping))
 	smap := make(map[reflect.Type]uint8, len(mapping))
-	for k, v := range mapping {
-		smap[v] = k
+	for id, t := range mapping {
+		if t.Kind() == reflect.Ptr {
+			t = t.Elem()
+		}
+
+		rmap[id] = t
+		smap[t] = id
 	}
 
 	return Proto{
-		rmap: mapping,
+		rmap: rmap,
 		smap: smap,
 	}
 }
@@ -113,7 +119,7 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 		return nil, tag, util.Errorf("receive %v: %w", m.Type().Elem(), err)
 	}
 
-	return m.Elem().Interface(), tag, err
+	return m.Interface(), tag, err
 }
 
 // Send writes a message to w with the given tag. It returns any
