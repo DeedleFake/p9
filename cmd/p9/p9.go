@@ -9,13 +9,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
-	"strings"
 
 	"github.com/DeedleFake/p9"
 	"github.com/DeedleFake/p9/internal/util"
 )
-
-const StandardPort = "564"
 
 type Command interface {
 	Name() string
@@ -125,38 +122,6 @@ func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 	return f(a)
 }
 
-func parseAddr(addr string) (network, address string) {
-	switch {
-	case strings.HasPrefix(addr, "$"):
-		return getNamespace(addr[1:])
-
-	case strings.HasPrefix(addr, "./"), strings.HasPrefix(addr, "/"):
-		return "unix", addr
-	}
-
-	parts := strings.SplitN(addr, ":", 2)
-	if len(parts) == 2 {
-		if (parts[1] == "9p") || (parts[1] == "9fs") {
-			parts[1] = StandardPort
-		}
-
-		return "tcp", strings.Join(parts, ":")
-	}
-
-	parts = strings.SplitN(addr, "!", 3)
-	switch len(parts) {
-	case 2:
-		return parts[0], parts[1] + ":" + StandardPort
-	case 3:
-		if (parts[2] == "9p") || (parts[2] == "9fs") {
-			parts[2] = StandardPort
-		}
-		return parts[0], strings.Join(parts[1:], ":")
-	}
-
-	return "tcp", addr + ":" + StandardPort
-}
-
 type GlobalOptions struct {
 	Network string
 	Address string
@@ -194,7 +159,11 @@ func main() {
 	help := flag.Bool("help", false, "Show this help.")
 	flag.Parse()
 
-	options.Network, options.Address = parseAddr(options.Address)
+	if p9.IsNamespaceAddr(options.Address) {
+		os.MkdirAll(p9.NamespaceDir(), 0700)
+	}
+
+	options.Network, options.Address = p9.ParseAddr(options.Address)
 
 	runCommand := func(c Command) {
 		err := c.Run(options, flag.Args())
