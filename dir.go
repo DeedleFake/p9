@@ -151,7 +151,27 @@ type readOnlyFS struct {
 
 func (ro readOnlyFS) Attach(afile File, user, aname string) (Attachment, error) {
 	a, err := ro.FileSystem.Attach(afile, user, aname)
-	return &readOnlyAttachment{a}, err
+	if err != nil {
+		return nil, err
+	}
+
+	return passQIDFS(&readOnlyAttachment{a}, a), nil
+}
+
+type qidfsPasser struct {
+	Attachment
+	QIDFS
+}
+
+func passQIDFS(w Attachment, u Attachment) Attachment {
+	if q, ok := u.(QIDFS); ok {
+		return &qidfsPasser{
+			Attachment: w,
+			QIDFS:      q,
+		}
+	}
+
+	return w
 }
 
 type readOnlyAttachment struct {
