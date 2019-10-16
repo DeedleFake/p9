@@ -678,20 +678,6 @@ func (h *fsHandler) wstat(msg *Twstat) interface{} {
 		}
 	}
 
-	// TODO: If the path is different because the name got changed,
-	// should the QID change, too? I think it should, but I'm actually
-	// not entirely sure.
-	//if name, ok := changes.Name(); ok {
-	//	h.pathM.Lock()
-	//	defer h.pathM.Unlock()
-
-	//	next := path.Join(path.Dir(file.path), name)
-	//	h.paths[next] = h.paths[file.path]
-	//	delete(h.paths, file.path)
-
-	//	file.path = next
-	//}
-
 	return &Rwstat{}
 }
 
