@@ -38,6 +38,9 @@ func (file *Remote) walk(p string) (*Remote, error) {
 	if w[0] != "/" {
 		w = strings.Split(w[0], "/")
 	}
+	if (len(w) == 1) && (w[0] == ".") {
+		w = nil
+	}
 	rsp, err := file.client.Send(&Twalk{
 		FID:    file.fid,
 		NewFID: fid,
@@ -48,7 +51,10 @@ func (file *Remote) walk(p string) (*Remote, error) {
 	}
 	walk := rsp.(*Rwalk)
 
-	qid := walk.WQID[len(walk.WQID)-1]
+	qid := file.qid
+	if len(walk.WQID) != 0 {
+		qid = walk.WQID[len(walk.WQID)-1]
+	}
 	if len(walk.WQID) != len(w) {
 		qid = QID{
 			Type:    0xFF,
