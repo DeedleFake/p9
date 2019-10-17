@@ -1,12 +1,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
+	"path"
 
+	"bazil.org/fuse"
+	"bazil.org/fuse/fs"
 	"github.com/DeedleFake/p9"
 	"github.com/DeedleFake/p9/internal/util"
-	"github.com/hanwen/go-fuse/v2/fs"
 )
 
 type mountCmd struct {
@@ -39,18 +42,135 @@ func (cmd *mountCmd) Run(options GlobalOptions, args []string) error {
 	}
 
 	return attach(options, func(a *p9.Remote) error {
-		s, err := fs.Mount(args[0], &fuse{}, nil)
+		c, err := fuse.Mount(
+			args[0],
+			fuse.FSName("9p!"+options.Address),
+			fuse.Subtype("9p"),
+			fuse.VolumeName("9p!"+options.Address),
+		)
 		if err != nil {
-			return err
+			return util.Errorf("mount: %w", err)
+		}
+		defer c.Close()
+
+		err = fs.Serve(c, &fuseFS{root: a})
+		if err != nil {
+			return util.Errorf("serve: %w", err)
 		}
 
-		s.Wait()
+		<-c.Ready
+		if err := c.MountError; err != nil {
+			return util.Errorf("ready: %w", err)
+		}
+
 		return nil
 	})
 }
 
-type fuse struct {
-	fs.Inode
+type fuseFS struct {
+	root *p9.Remote
+}
+
+func (fs *fuseFS) Root() (fs.Node, error) {
+	return &fuseNode{n: fs.root}, nil
+}
+
+type fuseNode struct {
+	n *p9.Remote
+	p string
+}
+
+func (node *fuseNode) flags(f fuse.OpenFlags) (flags uint8) {
+	switch {
+	case f.IsReadOnly():
+		flags = p9.OREAD
+	case f.IsWriteOnly():
+		flags = p9.OWRITE
+	case f.IsReadWrite():
+		flags = p9.ORDWR
+	}
+	if f&fuse.OpenTruncate != 0 {
+		flags |= p9.OTRUNC
+	}
+
+	return flags
+}
+
+func (node *fuseNode) Attr(ctx context.Context, attr *fuse.Attr) error {
+	s, err := node.n.Stat(node.p)
+	if err != nil {
+		return err
+	}
+
+	attr.Inode = s.Path
+	attr.Size = s.Length
+	attr.Blocks = s.Length / 512
+	attr.Atime = s.ATime
+	attr.Mtime = s.MTime
+	attr.Mode = s.FileMode.OS()
+
+	return nil
+}
+
+func (node *fuseNode) Lookup(ctx context.Context, name string) (fs.Node, error) {
+	p := path.Join(node.p, name)
+	_, err := node.n.Stat(p)
+	if err != nil {
+		return nil, fuse.ENOENT
+	}
+
+	return &fuseNode{node.n, p}, nil
+}
+
+func (node *fuseNode) Open(ctx context.Context, req *fuse.OpenRequest, rsp *fuse.OpenResponse) (fs.Handle, error) {
+	n, err := node.n.Open(node.p, node.flags(req.Flags))
+	return &fuseHandle{n: n}, err
+}
+
+type fuseHandle struct {
+	n *p9.Remote
+}
+
+func (node *fuseHandle) direntType(m p9.FileMode) fuse.DirentType {
+	switch {
+	case m&p9.ModeDir != 0:
+		return fuse.DT_Dir
+	case m&p9.ModeSymlink != 0:
+		return fuse.DT_Link
+	case m&p9.ModeSocket != 0:
+		return fuse.DT_Socket
+	default:
+		return fuse.DT_Unknown
+	}
+}
+
+func (node *fuseHandle) Read(ctx context.Context, req *fuse.ReadRequest, rsp *fuse.ReadResponse) error {
+	if req.Dir {
+		return fmt.Errorf("%#v", req)
+	}
+
+	buf := make([]byte, req.Size)
+	n, err := node.n.ReadAt(buf, req.Offset)
+	rsp.Data = buf[:n]
+	return err
+}
+
+func (node *fuseHandle) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
+	e, err := node.n.Readdir()
+	if err != nil {
+		return nil, err
+	}
+
+	r := make([]fuse.Dirent, len(e))
+	for i := range e {
+		r[i] = fuse.Dirent{
+			Inode: e[i].Path,
+			Type:  node.direntType(e[i].FileMode),
+			Name:  e[i].EntryName,
+		}
+	}
+
+	return r, nil
 }
 
 func init() {
