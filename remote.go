@@ -118,18 +118,20 @@ func (file *Remote) Create(p string, perm FileMode, mode uint8) (*Remote, error)
 // Remove deletes the file at p, relative to the current file. If p is
 // "", it closes the current file, if open, and deletes it.
 func (file *Remote) Remove(p string) error {
-	if p == "" {
-		_, err := file.client.Send(&Tremove{
-			FID: file.fid,
-		})
-		return err
+	if p != "" {
+		file, err := file.walk(p)
+		if err != nil {
+			return err
+		}
+		// Close is not necessary. Remove is also a clunk.
+
+		return file.Remove("")
 	}
 
-	file, err := file.walk(p)
-	if err != nil {
-		return err
-	}
-	return file.Remove("")
+	_, err := file.client.Send(&Tremove{
+		FID: file.fid,
+	})
+	return err
 }
 
 // Seek seeks a file. As 9P requires clients to track their own
@@ -312,23 +314,25 @@ func (file *Remote) Close() error {
 // relative to the current file. If p is "", it is considered to be
 // the current file.
 func (file *Remote) Stat(p string) (DirEntry, error) {
-	if p == "" {
-		rsp, err := file.client.Send(&Tstat{
-			FID: file.fid,
-		})
+	if p != "" {
+		file, err := file.walk(p)
 		if err != nil {
 			return DirEntry{}, err
 		}
-		stat := rsp.(*Rstat)
+		defer file.Close()
 
-		return stat.Stat.DirEntry(), nil
+		return file.Stat("")
 	}
 
-	file, err := file.walk(p)
+	rsp, err := file.client.Send(&Tstat{
+		FID: file.fid,
+	})
 	if err != nil {
 		return DirEntry{}, err
 	}
-	return file.Stat("")
+	stat := rsp.(*Rstat)
+
+	return stat.Stat.DirEntry(), nil
 }
 
 // Readdir reads the file as a directory, returning the list of
