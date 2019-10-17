@@ -124,14 +124,10 @@ func (node *fuseNode) Lookup(ctx context.Context, name string) (fs.Node, error) 
 
 func (node *fuseNode) Open(ctx context.Context, req *fuse.OpenRequest, rsp *fuse.OpenResponse) (fs.Handle, error) {
 	n, err := node.n.Open(node.p, node.flags(req.Flags))
-	return &fuseHandle{n: n}, err
+	return &fuseNode{n: n}, err
 }
 
-type fuseHandle struct {
-	n *p9.Remote
-}
-
-func (node *fuseHandle) direntType(m p9.FileMode) fuse.DirentType {
+func (node *fuseNode) direntType(m p9.FileMode) fuse.DirentType {
 	switch {
 	case m&p9.ModeDir != 0:
 		return fuse.DT_Dir
@@ -144,7 +140,7 @@ func (node *fuseHandle) direntType(m p9.FileMode) fuse.DirentType {
 	}
 }
 
-func (node *fuseHandle) Read(ctx context.Context, req *fuse.ReadRequest, rsp *fuse.ReadResponse) error {
+func (node *fuseNode) Read(ctx context.Context, req *fuse.ReadRequest, rsp *fuse.ReadResponse) error {
 	if req.Dir {
 		return fmt.Errorf("%#v", req)
 	}
@@ -155,7 +151,7 @@ func (node *fuseHandle) Read(ctx context.Context, req *fuse.ReadRequest, rsp *fu
 	return err
 }
 
-func (node *fuseHandle) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
+func (node *fuseNode) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	e, err := node.n.Readdir()
 	if err != nil {
 		return nil, err
@@ -171,6 +167,10 @@ func (node *fuseHandle) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	}
 
 	return r, nil
+}
+
+func (node *fuseNode) Release(ctx context.Context, req *fuse.ReleaseRequest) error {
+	return node.n.Close()
 }
 
 func init() {
