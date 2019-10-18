@@ -4,8 +4,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"log"
 	"path"
 
 	"bazil.org/fuse"
@@ -101,12 +104,12 @@ func (node *fuseNode) flags(f fuse.OpenFlags) (flags uint8) {
 func (node *fuseNode) Attr(ctx context.Context, attr *fuse.Attr) error {
 	s, err := node.n.Stat(node.p)
 	if err != nil {
+		fmt.Printf("Error statting file: %v", err)
 		return err
 	}
 
 	attr.Inode = s.Path
 	attr.Size = s.Length
-	attr.Blocks = s.Length / 512
 	attr.Atime = s.ATime
 	attr.Mtime = s.MTime
 	attr.Mode = s.FileMode.OS()
@@ -126,7 +129,11 @@ func (node *fuseNode) Lookup(ctx context.Context, name string) (fs.Node, error) 
 
 func (node *fuseNode) Open(ctx context.Context, req *fuse.OpenRequest, rsp *fuse.OpenResponse) (fs.Handle, error) {
 	n, err := node.n.Open(node.p, node.flags(req.Flags))
-	return &fuseNode{n: n}, err
+	if err != nil {
+		log.Printf("Error opening file: %v", err)
+		return nil, err
+	}
+	return &fuseNode{n: n}, nil
 }
 
 func (node *fuseNode) direntType(m p9.FileMode) fuse.DirentType {
@@ -144,18 +151,24 @@ func (node *fuseNode) direntType(m p9.FileMode) fuse.DirentType {
 
 func (node *fuseNode) Read(ctx context.Context, req *fuse.ReadRequest, rsp *fuse.ReadResponse) error {
 	if req.Dir {
+		log.Printf("Tried to read file as a directory")
 		return fmt.Errorf("%#v", req)
 	}
 
 	buf := make([]byte, req.Size)
 	n, err := node.n.ReadAt(buf, req.Offset)
 	rsp.Data = buf[:n]
-	return err
+	if (err != nil) && !errors.Is(err, io.EOF) {
+		log.Printf("Error reading file: %v", err)
+		return err
+	}
+	return nil
 }
 
 func (node *fuseNode) ReadDirAll(ctx context.Context) ([]fuse.Dirent, error) {
 	e, err := node.n.Readdir()
 	if err != nil {
+		log.Printf("Error reading directory: %v", err)
 		return nil, err
 	}
 
