@@ -38,6 +38,9 @@ func (file *Remote) walk(p string) (*Remote, error) {
 	if w[0] != "/" {
 		w = strings.Split(w[0], "/")
 	}
+	if (len(w) == 1) && (w[0] == ".") {
+		w = nil
+	}
 	rsp, err := file.client.Send(&Twalk{
 		FID:    file.fid,
 		NewFID: fid,
@@ -48,7 +51,10 @@ func (file *Remote) walk(p string) (*Remote, error) {
 	}
 	walk := rsp.(*Rwalk)
 
-	qid := walk.WQID[len(walk.WQID)-1]
+	qid := file.qid
+	if len(walk.WQID) != 0 {
+		qid = walk.WQID[len(walk.WQID)-1]
+	}
 	if len(walk.WQID) != len(w) {
 		qid = QID{
 			Type:    0xFF,
@@ -179,7 +185,7 @@ func (file *Remote) Seek(offset int64, whence int) (int64, error) {
 }
 
 // Read reads from the file at the internally-tracked offset. For more
-// information, see ReadAt().
+// information, see ReadAt.
 func (file *Remote) Read(buf []byte) (int, error) {
 	file.m.Lock()
 	defer file.m.Unlock()
@@ -243,7 +249,7 @@ func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
 }
 
 // Write writes to the file at the internally-tracked offset. For more
-// information, see WriteAt().
+// information, see WriteAt.
 func (file *Remote) Write(data []byte) (int, error) {
 	file.m.Lock()
 	defer file.m.Unlock()

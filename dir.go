@@ -26,7 +26,12 @@ func (d Dir) Stat(p string) (DirEntry, error) {
 		return DirEntry{}, err
 	}
 
-	return infoToEntry(fi), nil
+	e := infoToEntry(fi)
+	if e.EntryName == "." {
+		e.EntryName = ""
+	}
+
+	return e, nil
 }
 
 // WriteStat implements Attachment.WriteStat.
@@ -198,8 +203,8 @@ func (ro readOnlyAttachment) Remove(path string) error {
 	return errors.New("read-only filesystem")
 }
 
-// AuthFS allows simple wrapping and overwriting of the Auth() and
-// Attach() methods of an existing FileSystem implementation, allowing
+// AuthFS allows simple wrapping and overwriting of the Auth and
+// Attach methods of an existing FileSystem implementation, allowing
 // the user to add authentication support to a FileSystem that does
 // not have it, or to change the implementation of that support for
 // FileSystems that do.
