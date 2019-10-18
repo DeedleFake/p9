@@ -26,7 +26,12 @@ func (d Dir) Stat(p string) (DirEntry, error) {
 		return DirEntry{}, err
 	}
 
-	return infoToEntry(fi), nil
+	e := infoToEntry(fi)
+	if e.EntryName == "." {
+		e.EntryName = ""
+	}
+
+	return e, nil
 }
 
 // WriteStat implements Attachment.WriteStat.
