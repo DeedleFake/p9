@@ -163,7 +163,7 @@ func (c *Client) SetMsize(size uint32) {
 // concurrently, and each will return when the response to that
 // request has been received.
 func (c *Client) Send(msg interface{}) (interface{}, error) {
-	debug.Log("client -> %T\n", msg)
+	debug.Log("client -> %#v\n", msg)
 
 	tag := NoTag
 	if _, ok := msg.(P9NoTag); !ok {
@@ -198,7 +198,7 @@ func (c *Client) Send(msg interface{}) (interface{}, error) {
 	case <-c.done:
 		return nil, ErrClientClosed
 	case rsp := <-ret:
-		debug.Log("client <- %T\n", rsp)
+		debug.Log("client <- %#v\n", rsp)
 
 		if err, ok := rsp.(error); ok {
 			return nil, err
