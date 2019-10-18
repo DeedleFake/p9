@@ -198,8 +198,8 @@ func (ro readOnlyAttachment) Remove(path string) error {
 	return errors.New("read-only filesystem")
 }
 
-// AuthFS allows simple wrapping and overwriting of the Auth() and
-// Attach() methods of an existing FileSystem implementation, allowing
+// AuthFS allows simple wrapping and overwriting of the Auth and
+// Attach methods of an existing FileSystem implementation, allowing
 // the user to add authentication support to a FileSystem that does
 // not have it, or to change the implementation of that support for
 // FileSystems that do.

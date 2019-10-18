@@ -185,7 +185,7 @@ func (file *Remote) Seek(offset int64, whence int) (int64, error) {
 }
 
 // Read reads from the file at the internally-tracked offset. For more
-// information, see ReadAt().
+// information, see ReadAt.
 func (file *Remote) Read(buf []byte) (int, error) {
 	file.m.Lock()
 	defer file.m.Unlock()
@@ -249,7 +249,7 @@ func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
 }
 
 // Write writes to the file at the internally-tracked offset. For more
-// information, see WriteAt().
+// information, see WriteAt.
 func (file *Remote) Write(data []byte) (int, error) {
 	file.m.Lock()
 	defer file.m.Unlock()

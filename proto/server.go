@@ -42,7 +42,7 @@ func Serve(lis net.Listener, p Proto, connHandler ConnHandler) (err error) {
 }
 
 // ListenAndServe is a convenience function that establishes a
-// listener, via net.Listen(), and then calls Serve().
+// listener, via net.Listen, and then calls Serve.
 func ListenAndServe(network, addr string, p Proto, connHandler ConnHandler) (rerr error) {
 	lis, err := net.Listen(network, addr)
 	if err != nil {
@@ -130,7 +130,7 @@ func (h ConnHandlerFunc) MessageHandler() MessageHandler {
 
 // MessageHandler handles messages for a single client connection.
 //
-// If a MessageHandler also implements io.Closer, then Close() will be
+// If a MessageHandler also implements io.Closer, then Close will be
 // called when the connection ends. Its return value is ignored.
 type MessageHandler interface {
 	// HandleMessage is passed received messages from the client. Its

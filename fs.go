@@ -34,10 +34,10 @@ type FileSystem interface {
 //
 // All paths passed to the methods of this system begin with the aname
 // used to attach the attachment, use forward slashes as separators,
-// and have been cleaned using path.Clean(). For example, if the
-// client attaches using the aname "/example" and then tries to open
-// the file located at "some/other/example", the Open() method will be
-// called with the path "/example/some/other/example".
+// and have been cleaned using path.Clean. For example, if the client
+// attaches using the aname "/example" and then tries to open the file
+// located at "some/other/example", the Open method will be called
+// with the path "/example/some/other/example".
 type Attachment interface {
 	// Stat returns a DirEntry giving info about the file or directory
 	// at the given path. If an error is returned, the text of the error
@@ -147,7 +147,7 @@ type fsHandler struct {
 //
 // BUG: Tflush requests are not currently handled at all by this
 // implementation due to no clear method of stopping a pending call to
-// ReadAt() or WriteAt().
+// ReadAt or WriteAt.
 func FSHandler(fs FileSystem, msize uint32) proto.MessageHandler {
 	return &fsHandler{
 		fs:    fs,
@@ -157,7 +157,7 @@ func FSHandler(fs FileSystem, msize uint32) proto.MessageHandler {
 	}
 }
 
-// FSConnHandler returns a ConnHandler that calls FSHandler() to
+// FSConnHandler returns a ConnHandler that calls FSHandler to
 // generate MessageHandlers.
 //
 // The returned ConnHandler implementation will print debug messages
