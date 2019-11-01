@@ -104,7 +104,7 @@ func (node *fuseNode) flags(f fuse.OpenFlags) (flags uint8) {
 func (node *fuseNode) Attr(ctx context.Context, attr *fuse.Attr) error {
 	s, err := node.n.Stat(node.p)
 	if err != nil {
-		fmt.Printf("Error statting file: %v", err)
+		log.Printf("Error statting file: %v", err)
 		return err
 	}
 
@@ -124,7 +124,7 @@ func (node *fuseNode) Lookup(ctx context.Context, name string) (fs.Node, error) 
 		return nil, fuse.ENOENT
 	}
 
-	return &fuseNode{node.n, p}, nil
+	return &fuseNode{n: node.n, p: p}, nil
 }
 
 func (node *fuseNode) Open(ctx context.Context, req *fuse.OpenRequest, rsp *fuse.OpenResponse) (fs.Handle, error) {
@@ -134,6 +134,33 @@ func (node *fuseNode) Open(ctx context.Context, req *fuse.OpenRequest, rsp *fuse
 		return nil, err
 	}
 	return &fuseNode{n: n}, nil
+}
+
+func (node *fuseNode) Create(ctx context.Context, req *fuse.CreateRequest, rsp *fuse.CreateResponse) (fs.Handle, error) {
+	n, err := node.n.Create(path.Join(node.p, req.Name), p9.ModeFromOS(req.Mode), node.flags(req.Flags))
+	if err != nil {
+		log.Printf("Error creating file: %v", err)
+		return nil, err
+	}
+	return &fuseNode{n: n}, nil
+}
+
+func (node *fuseNode) Mkdir(ctx context.Context, req *fuse.MkdirRequest) (fs.Node, error) {
+	p := path.Join(node.p, req.Name)
+
+	n, err := node.n.Create(p, p9.ModeFromOS(req.Mode)|p9.ModeDir, 0)
+	if err != nil {
+		log.Printf("Error creating directory: %v", err)
+		return nil, err
+	}
+
+	err = n.Close()
+	if err != nil {
+		log.Printf("Error closing newly-created directory: %v", err)
+		return nil, err
+	}
+
+	return &fuseNode{n: n, p: p}, nil
 }
 
 func (node *fuseNode) direntType(m p9.FileMode) fuse.DirentType {
@@ -160,6 +187,16 @@ func (node *fuseNode) Read(ctx context.Context, req *fuse.ReadRequest, rsp *fuse
 	rsp.Data = buf[:n]
 	if (err != nil) && !errors.Is(err, io.EOF) {
 		log.Printf("Error reading file: %v", err)
+		return err
+	}
+	return nil
+}
+
+func (node *fuseNode) Write(ctx context.Context, req *fuse.WriteRequest, rsp *fuse.WriteResponse) error {
+	n, err := node.n.WriteAt(req.Data, req.Offset)
+	rsp.Size = n
+	if err != nil {
+		log.Printf("Error writing file: %v", err)
 		return err
 	}
 	return nil
