@@ -2,11 +2,14 @@ package p9
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"path"
 	"sync"
-	"sync/atomic"
+	"time"
+	"unsafe"
 
 	"github.com/DeedleFake/p9/internal/debug"
 	"github.com/DeedleFake/p9/proto"
@@ -131,10 +134,6 @@ type fsHandler struct {
 	msize uint32
 
 	fids sync.Map // map[uint32]*fsFile
-
-	pathM    sync.Mutex
-	nextPath uint64
-	paths    map[string]uint64
 }
 
 // FSHandler returns a MessageHandler that provides a virtual
@@ -152,8 +151,6 @@ func FSHandler(fs FileSystem, msize uint32) proto.MessageHandler {
 	return &fsHandler{
 		fs:    fs,
 		msize: msize,
-
-		paths: make(map[string]uint64),
 	}
 }
 
@@ -169,11 +166,6 @@ func FSConnHandler(fs FileSystem, msize uint32) proto.ConnHandler {
 	})
 }
 
-func (h *fsHandler) getNextPath() uint64 {
-	next := atomic.AddUint64(&h.nextPath, 1)
-	return next - 1
-}
-
 func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 	if q, ok := attach.(QIDFS); ok {
 		return q.GetQID(p)
@@ -184,23 +176,12 @@ func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 		return QID{}, err
 	}
 
-	h.pathM.Lock()
-	defer h.pathM.Unlock()
-
-	n, ok := h.paths[p]
-	if ok {
-		return QID{
-			Type: stat.FileMode.QIDType(),
-			Path: n,
-		}, nil
-	}
-
-	n = h.getNextPath()
-	h.paths[p] = n
+	sum := sha256.Sum256(*(*[]byte)(unsafe.Pointer(&p)))
+	path := binary.LittleEndian.Uint64(sum[:])
 
 	return QID{
 		Type: stat.FileMode.QIDType(),
-		Path: n,
+		Path: path,
 	}, nil
 }
 
@@ -255,7 +236,7 @@ func (h *fsHandler) auth(msg *Tauth) interface{} {
 	return &Rauth{
 		AQID: QID{
 			Type: QTAuth,
-			Path: h.getNextPath(),
+			Path: uint64(time.Now().UnixNano()),
 		},
 	}
 }
