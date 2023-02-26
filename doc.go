@@ -13,11 +13,11 @@
 // For example, a typical 9P exchange, skipping version negotiation
 // and authentication, might look something like this:
 //
-//    attach to filesystem "/" and call it 1
-//    navigate to file at "some/path" relative to 1 and call it 2
-//    navigate to file at "../woops/other/path" relative to 2 and call it 3
-//    open file 3
-//    read from file 3
+//	attach to filesystem "/" and call it 1
+//	navigate to file at "some/path" relative to 1 and call it 2
+//	navigate to file at "../woops/other/path" relative to 2 and call it 3
+//	open file 3
+//	read from file 3
 //
 // This package attempts to completely abstract away the navigation
 // aspects of 9P, but a lot of things are still relative to others.
@@ -28,16 +28,16 @@
 // The Client type provides a series of functionality that allows the
 // user to connect to 9P servers. Here's an example of its use:
 //
-//    c, _ := p9.Dial("tcp", addr)
-//    defer c.Close()
-//    c.Handshake(4096)
+//	c, _ := p9.Dial("tcp", addr)
+//	defer c.Close()
+//	c.Handshake(4096)
 //
-//    root, _ := c.Attach(nil, "anyone", "/")
-//    defer root.Close()
+//	root, _ := c.Attach(nil, "anyone", "/")
+//	defer root.Close()
 //
-//    file, _ := root.Open("path/to/a/file", p9.OREAD)
-//    defer file.Close()
-//    buf, _ := ioutil.ReadAll(file)
+//	file, _ := root.Open("path/to/a/file", p9.OREAD)
+//	defer file.Close()
+//	buf, _ := ioutil.ReadAll(file)
 //
 // The client is split into two main types: Client and Remote. Client
 // provides the basic functionality for establishing a connection,

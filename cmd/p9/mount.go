@@ -1,4 +1,5 @@
-// +build linux darwin freebsd
+//go:build unix && !darwin
+// +build unix,!darwin
 
 package main
 
@@ -51,7 +52,6 @@ func (cmd *mountCmd) Run(options GlobalOptions, args []string) error {
 			args[0],
 			fuse.FSName("9p!"+options.Address),
 			fuse.Subtype("9p"),
-			fuse.VolumeName("9p!"+options.Address),
 		)
 		if err != nil {
 			return util.Errorf("mount: %w", err)
@@ -61,11 +61,6 @@ func (cmd *mountCmd) Run(options GlobalOptions, args []string) error {
 		err = fs.Serve(c, &fuseFS{root: a})
 		if err != nil {
 			return util.Errorf("serve: %w", err)
-		}
-
-		<-c.Ready
-		if err := c.MountError; err != nil {
-			return util.Errorf("ready: %w", err)
 		}
 
 		return nil

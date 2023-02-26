@@ -74,8 +74,8 @@ func (file *Remote) walk(p string) (*Remote, error) {
 // cases, this will likely be relative to the filesystem root. For
 // example:
 //
-//    root, _ := client.Attach(nil, "anyone", "/")
-//    file, _ := root.Open("some/file/or/another", p9.OREAD)
+//	root, _ := client.Attach(nil, "anyone", "/")
+//	file, _ := root.Open("some/file/or/another", p9.OREAD)
 func (file *Remote) Open(p string, mode uint8) (*Remote, error) {
 	next, err := file.walk(p)
 	if err != nil {
