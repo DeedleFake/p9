@@ -202,7 +202,7 @@ func (h *fsHandler) largeCount(count uint32) bool {
 	return IOHeaderSize+count > h.msize
 }
 
-func (h *fsHandler) version(msg *Tversion) interface{} {
+func (h *fsHandler) version(msg *Tversion) any {
 	if msg.Version != Version {
 		return &Rerror{
 			Ename: ErrUnsupportedVersion.Error(),
@@ -219,7 +219,7 @@ func (h *fsHandler) version(msg *Tversion) interface{} {
 	}
 }
 
-func (h *fsHandler) auth(msg *Tauth) interface{} {
+func (h *fsHandler) auth(msg *Tauth) any {
 	file, err := h.fs.Auth(msg.Uname, msg.Aname)
 	if err != nil {
 		return &Rerror{
@@ -241,14 +241,14 @@ func (h *fsHandler) auth(msg *Tauth) interface{} {
 	}
 }
 
-func (h *fsHandler) flush(msg *Tflush) interface{} {
+func (h *fsHandler) flush(msg *Tflush) any {
 	// TODO: Implement this.
 	return &Rerror{
 		Ename: "flush is not supported",
 	}
 }
 
-func (h *fsHandler) attach(msg *Tattach) interface{} {
+func (h *fsHandler) attach(msg *Tattach) any {
 	var afile File
 	if msg.AFID != NoFID {
 		tmp, ok := h.getFile(msg.AFID, false)
@@ -294,7 +294,7 @@ func (h *fsHandler) attach(msg *Tattach) interface{} {
 	}
 }
 
-func (h *fsHandler) walk(msg *Twalk) interface{} {
+func (h *fsHandler) walk(msg *Twalk) any {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
@@ -345,7 +345,7 @@ func (h *fsHandler) walk(msg *Twalk) interface{} {
 	}
 }
 
-func (h *fsHandler) open(msg *Topen) interface{} {
+func (h *fsHandler) open(msg *Topen) any {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
@@ -387,7 +387,7 @@ func (h *fsHandler) open(msg *Topen) interface{} {
 	}
 }
 
-func (h *fsHandler) create(msg *Tcreate) interface{} {
+func (h *fsHandler) create(msg *Tcreate) any {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
@@ -433,7 +433,7 @@ func (h *fsHandler) create(msg *Tcreate) interface{} {
 	}
 }
 
-func (h *fsHandler) read(msg *Tread) interface{} {
+func (h *fsHandler) read(msg *Tread) any {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
@@ -526,7 +526,7 @@ func (h *fsHandler) read(msg *Tread) interface{} {
 	}
 }
 
-func (h *fsHandler) write(msg *Twrite) interface{} {
+func (h *fsHandler) write(msg *Twrite) any {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
@@ -554,7 +554,7 @@ func (h *fsHandler) write(msg *Twrite) interface{} {
 	}
 }
 
-func (h *fsHandler) clunk(msg *Tclunk) interface{} {
+func (h *fsHandler) clunk(msg *Tclunk) any {
 	defer h.fids.Delete(msg.FID)
 
 	file, ok := h.getFile(msg.FID, false)
@@ -580,7 +580,7 @@ func (h *fsHandler) clunk(msg *Tclunk) interface{} {
 	return &Rclunk{}
 }
 
-func (h *fsHandler) remove(msg *Tremove) interface{} {
+func (h *fsHandler) remove(msg *Tremove) any {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
@@ -607,7 +607,7 @@ func (h *fsHandler) remove(msg *Tremove) interface{} {
 	return &Rremove{}
 }
 
-func (h *fsHandler) stat(msg *Tstat) interface{} {
+func (h *fsHandler) stat(msg *Tstat) any {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
@@ -638,7 +638,7 @@ func (h *fsHandler) stat(msg *Tstat) interface{} {
 	}
 }
 
-func (h *fsHandler) wstat(msg *Twstat) interface{} {
+func (h *fsHandler) wstat(msg *Twstat) any {
 	file, ok := h.getFile(msg.FID, false)
 	if !ok {
 		return &Rerror{
@@ -662,7 +662,7 @@ func (h *fsHandler) wstat(msg *Twstat) interface{} {
 	return &Rwstat{}
 }
 
-func (h *fsHandler) HandleMessage(msg interface{}) (r interface{}) {
+func (h *fsHandler) HandleMessage(msg any) (r any) {
 	defer func() {
 		debug.Log("%#v\n", r)
 	}()
@@ -717,7 +717,7 @@ func (h *fsHandler) HandleMessage(msg interface{}) (r interface{}) {
 }
 
 func (h *fsHandler) Close() error {
-	h.fids.Range(func(k, v interface{}) bool {
+	h.fids.Range(func(k, v any) bool {
 		file := v.(*fsFile)
 		if file.file != nil {
 			file.file.Close()

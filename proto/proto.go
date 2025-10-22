@@ -28,7 +28,7 @@ const (
 )
 
 var bufPool = sync.Pool{
-	New: func() interface{} {
+	New: func() any {
 		return new(bytes.Buffer)
 	},
 }
@@ -75,7 +75,7 @@ func (p Proto) IDFromType(t reflect.Type) (uint8, bool) {
 // Receive receives a message from r using the given maximum message
 // size. It returns the message, the tag that the message was sent
 // with, and an error, if any.
-func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, err error) {
+func (p Proto) Receive(r io.Reader, msize uint32) (msg any, tag uint16, err error) {
 	var size uint32
 	err = Read(r, &size)
 	if err != nil {
@@ -127,7 +127,7 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg interface{}, tag uint16, 
 //
 // Encoded messages are buffered locally before sending to ensure that
 // pieces of a message don't get mixed with another one.
-func (p Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
+func (p Proto) Send(w io.Writer, tag uint16, msg any) (err error) {
 	buf := bufPool.Get().(*bytes.Buffer)
 	defer func() {
 		if err == nil {
@@ -146,7 +146,7 @@ func (p Proto) Send(w io.Writer, tag uint16, msg interface{}) (err error) {
 		return util.Errorf("send: invalid message type: %T", msg)
 	}
 
-	write := func(v interface{}) {
+	write := func(v any) {
 		if err != nil {
 			return
 		}

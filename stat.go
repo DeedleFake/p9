@@ -190,7 +190,7 @@ func (s Stat) size() uint16 {
 
 func (s Stat) P9Encode() (r []byte, err error) {
 	var buf bytes.Buffer
-	write := func(v interface{}) {
+	write := func(v any) {
 		if err != nil {
 			return
 		}
@@ -227,7 +227,7 @@ func (s *Stat) P9Decode(r io.Reader) (err error) {
 		E: ErrLargeStat,
 	}
 
-	read := func(v interface{}) {
+	read := func(v any) {
 		if err != nil {
 			return
 		}
@@ -306,7 +306,7 @@ func (d DirEntry) IsDir() bool {
 	return d.FileMode&ModeDir != 0
 }
 
-func (d DirEntry) Sys() interface{} {
+func (d DirEntry) Sys() any {
 	return d
 }
 

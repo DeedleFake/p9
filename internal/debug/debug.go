@@ -8,6 +8,6 @@ import (
 	"os"
 )
 
-func Log(str string, args ...interface{}) {
+func Log(str string, args ...any) {
 	fmt.Fprintf(os.Stderr, str, args...)
 }

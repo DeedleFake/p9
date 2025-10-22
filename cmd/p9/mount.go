@@ -16,6 +16,7 @@ import (
 	"bazil.org/fuse/fs"
 	"github.com/DeedleFake/p9"
 	"github.com/DeedleFake/p9/internal/util"
+	"golang.org/x/sys/unix"
 )
 
 type mountCmd struct {
@@ -116,7 +117,7 @@ func (node *fuseNode) Lookup(ctx context.Context, name string) (fs.Node, error) 
 	p := path.Join(node.p, name)
 	_, err := node.n.Stat(p)
 	if err != nil {
-		return nil, fuse.ENOENT
+		return nil, unix.ENOENT
 	}
 
 	return &fuseNode{n: node.n, p: p}, nil

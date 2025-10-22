@@ -3,4 +3,4 @@
 
 package debug
 
-func Log(str string, args ...interface{}) {}
+func Log(str string, args ...any) {}

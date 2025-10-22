@@ -11,7 +11,7 @@ import (
 )
 
 // Size returns the size of a message after encoding.
-func Size(v interface{}) (uint32, error) {
+func Size(v any) (uint32, error) {
 	e := &encoder{}
 	e.mode = e.size
 
@@ -22,7 +22,7 @@ func Size(v interface{}) (uint32, error) {
 // Write encodes and writes a message to w. It does not perform any
 // buffering. It is the caller's responsibility to ensure that
 // encoding does not interleave with other usages of w.
-func Write(w io.Writer, v interface{}) error {
+func Write(w io.Writer, v any) error {
 	e := &encoder{w: w}
 	e.mode = e.write
 
@@ -31,7 +31,7 @@ func Write(w io.Writer, v interface{}) error {
 }
 
 // Read decodes a message from r into v.
-func Read(r io.Reader, v interface{}) error {
+func Read(r io.Reader, v any) error {
 	d := &decoder{r: r}
 	d.decode(reflect.ValueOf(v))
 	return d.err
@@ -42,14 +42,14 @@ type encoder struct {
 	n   uint32
 	err error
 
-	mode func(interface{})
+	mode func(any)
 }
 
-func (e *encoder) size(v interface{}) {
+func (e *encoder) size(v any) {
 	e.n += uint32(binary.Size(v))
 }
 
-func (e *encoder) write(v interface{}) {
+func (e *encoder) write(v any) {
 	if e.err != nil {
 		return
 	}
@@ -113,7 +113,7 @@ type decoder struct {
 	err error
 }
 
-func (d *decoder) read(v interface{}) {
+func (d *decoder) read(v any) {
 	if d.err != nil {
 		return
 	}

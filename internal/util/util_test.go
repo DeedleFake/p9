@@ -30,7 +30,6 @@ func TestLimitedReader(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		test := test
 		t.Run(test.name, func(t *testing.T) {
 			r := &util.LimitedReader{
 				R: bytes.NewReader(test.in),
@@ -41,7 +40,7 @@ func TestLimitedReader(t *testing.T) {
 			var out []byte
 			var err error
 
-			for i := 0; i < 5; i++ {
+			for range 5 {
 				n, rerr := r.Read(test.buf)
 				out = append(out, test.buf[:n]...)
 

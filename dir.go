@@ -237,7 +237,7 @@ func (a AuthFS) Attach(afile File, user, aname string) (Attachment, error) {
 }
 
 func toOSFlags(mode uint8) (flag int) {
-	if mode&OREAD != 0 {
+	if mode == 0 { // OREAD is all bits zero.
 		flag |= os.O_RDONLY
 	}
 	if mode&OWRITE != 0 {

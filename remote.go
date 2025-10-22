@@ -227,17 +227,11 @@ func (file *Remote) readPart(buf []byte, off int64) (int, error) {
 // If an error occurs while performing the sequential requests, it
 // will return immediately.
 func (file *Remote) ReadAt(buf []byte, off int64) (int, error) {
-	size := len(buf)
-	if size > file.maxBufSize() {
-		size = file.maxBufSize()
-	}
+	size := min(len(buf), file.maxBufSize())
 
 	var total int
 	for start := 0; start < len(buf); start += size {
-		end := start + size
-		if end > len(buf) {
-			end = len(buf)
-		}
+		end := min(start+size, len(buf))
 
 		n, err := file.readPart(buf[start:end], off+int64(start))
 		total += n
@@ -286,17 +280,11 @@ func (file *Remote) writePart(data []byte, off int64) (int, error) {
 // If an error occurs while performing the sequential requests, it
 // will return immediately.
 func (file *Remote) WriteAt(data []byte, off int64) (int, error) {
-	size := len(data)
-	if size > file.maxBufSize() {
-		size = file.maxBufSize()
-	}
+	size := min(len(data), file.maxBufSize())
 
 	var total int
 	for start := 0; start < len(data); start += size {
-		end := start + size
-		if end > len(data) {
-			end = len(data)
-		}
+		end := min(start+size, len(data))
 
 		n, err := file.writePart(data[start:end], off+int64(start))
 		total += n

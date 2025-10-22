@@ -135,13 +135,13 @@ func (h ConnHandlerFunc) MessageHandler() MessageHandler {
 type MessageHandler interface {
 	// HandleMessage is passed received messages from the client. Its
 	// return value is then sent back to the client with the same tag.
-	HandleMessage(interface{}) interface{}
+	HandleMessage(any) any
 }
 
 // MessageHandlerFunc allows a function to be used as a MessageHandler.
-type MessageHandlerFunc func(interface{}) interface{}
+type MessageHandlerFunc func(any) any
 
-func (h MessageHandlerFunc) HandleMessage(msg interface{}) interface{} {
+func (h MessageHandlerFunc) HandleMessage(msg any) any {
 	return h(msg)
 }
 
