@@ -41,7 +41,7 @@ func (lr *LimitedReader) Read(buf []byte) (int, error) {
 // Errorf is a variant of fmt.Errorf that returns an error being
 // wrapped directly if it is one of a number of specific values, such
 // as nil or io.EOF.
-func Errorf(str string, args ...interface{}) error {
+func Errorf(str string, args ...any) error {
 	for _, arg := range args {
 		if arg == io.EOF {
 			return arg.(error)

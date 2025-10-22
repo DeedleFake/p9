@@ -113,7 +113,7 @@ func (c *Client) coord(ctx context.Context) {
 	defer close(c.done)
 
 	var nextTag uint16
-	tags := make(map[uint16]chan interface{})
+	tags := make(map[uint16]chan any)
 
 	for {
 		select {
@@ -162,7 +162,7 @@ func (c *Client) SetMsize(size uint32) {
 // been received. It is safe to place multiple Send calls
 // concurrently, and each will return when the response to that
 // request has been received.
-func (c *Client) Send(msg interface{}) (interface{}, error) {
+func (c *Client) Send(msg any) (any, error) {
 	debug.Log("client -> %#v\n", msg)
 
 	tag := NoTag
@@ -174,7 +174,7 @@ func (c *Client) Send(msg interface{}) (interface{}, error) {
 		}
 	}
 
-	ret := make(chan interface{}, 1)
+	ret := make(chan any, 1)
 	select {
 	case <-c.done:
 		return nil, ErrClientClosed
@@ -210,8 +210,8 @@ func (c *Client) Send(msg interface{}) (interface{}, error) {
 // Sometimes I think that some type of tuples would be nice...
 type clientMsg struct {
 	tag  uint16
-	recv interface{}
-	ret  chan interface{}
+	recv any
+	ret  chan any
 }
 
 // P9NoTag is implemented by any types that should not use tags for
