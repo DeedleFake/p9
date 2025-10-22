@@ -149,7 +149,9 @@ func (d *decoder) decode(v reflect.Value) {
 		case reflect.Uint8:
 			d.read(&length)
 		default:
-			d.read((*uint16)(unsafe.Pointer(&length)))
+			var t uint16
+			d.read(&t)
+			length = uint32(t)
 		}
 
 		if int(length) > v.Cap() {
@@ -168,7 +170,7 @@ func (d *decoder) decode(v reflect.Value) {
 		buf := make([]byte, int(length))
 		d.read(buf)
 
-		v.SetString(*(*string)(unsafe.Pointer(&buf)))
+		v.SetString(unsafe.String(unsafe.SliceData(buf), len(buf)))
 
 	case reflect.Struct:
 		for i := 0; i < v.NumField(); i++ {
