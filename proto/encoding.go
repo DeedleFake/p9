@@ -168,7 +168,7 @@ func (d *decoder) decode(v reflect.Value) {
 		buf := make([]byte, int(length))
 		d.read(buf)
 
-		v.SetString(*(*string)(unsafe.Pointer(&buf)))
+		v.SetString(unsafe.String(unsafe.SliceData(buf), len(buf)))
 
 	case reflect.Struct:
 		for i := 0; i < v.NumField(); i++ {

@@ -176,7 +176,7 @@ func (h *fsHandler) getQID(p string, attach Attachment) (QID, error) {
 		return QID{}, err
 	}
 
-	sum := sha256.Sum256(*(*[]byte)(unsafe.Pointer(&p)))
+	sum := sha256.Sum256(unsafe.Slice(unsafe.StringData(p), len(p)))
 	path := binary.LittleEndian.Uint64(sum[:])
 
 	return QID{

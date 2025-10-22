@@ -149,7 +149,7 @@ func (m FileMode) String() string {
 		}
 	}
 
-	return *(*string)(unsafe.Pointer(&buf))
+	return unsafe.String(unsafe.SliceData(buf), len(buf))
 }
 
 // Stat is a stat value.
