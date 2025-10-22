@@ -149,7 +149,9 @@ func (d *decoder) decode(v reflect.Value) {
 		case reflect.Uint8:
 			d.read(&length)
 		default:
-			d.read((*uint16)(unsafe.Pointer(&length)))
+			var t uint16
+			d.read(&t)
+			length = uint32(t)
 		}
 
 		if int(length) > v.Cap() {
