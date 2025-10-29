@@ -100,10 +100,6 @@ func (p Proto) Receive(r io.Reader, msize uint32) (msg any, tag uint16, err erro
 
 	t := p.TypeFromID(msgType)
 	if t == nil {
-		if err != nil {
-			return nil, NoTag, err
-		}
-
 		return nil, NoTag, util.Errorf("receive: invalid message type: %v", msgType)
 	}
 
