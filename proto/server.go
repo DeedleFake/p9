@@ -74,6 +74,7 @@ func handleMessages(c net.Conn, p Proto, handler MessageHandler) {
 			}
 
 			log.Printf("Error reading message: %v", err)
+			continue
 		}
 
 		mode(func() {
