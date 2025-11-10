@@ -106,7 +106,12 @@ func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 	if err != nil {
 		return err
 	}
-	defer c.Close()
+	defer func() {
+		err := c.Close()
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error closing connection: %v", err)
+		}
+	}()
 
 	_, err = c.Handshake(uint32(options.MSize))
 	if err != nil {
@@ -117,7 +122,12 @@ func attach(options GlobalOptions, f func(*p9.Remote) error) error {
 	if err != nil {
 		return util.Errorf("attach %q: %w", options.AName, err)
 	}
-	defer a.Close()
+	defer func() {
+		err := a.Close()
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error closing remote: %v\n", err)
+		}
+	}()
 
 	return f(a)
 }
@@ -160,7 +170,11 @@ func main() {
 	flag.Parse()
 
 	if p9.IsNamespaceAddr(options.Address) {
-		os.MkdirAll(p9.NamespaceDir(), 0700)
+		err := os.MkdirAll(p9.NamespaceDir(), 0700)
+		if err != nil {
+			_, _ = fmt.Fprintf(os.Stderr, "Error creating namespace directory: %v\n", err)
+			return
+		}
 	}
 
 	options.Network, options.Address = p9.ParseAddr(options.Address)

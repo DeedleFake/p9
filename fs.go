@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"sync"
 	"time"
@@ -720,7 +721,11 @@ func (h *fsHandler) Close() error {
 	h.fids.Range(func(k, v any) bool {
 		file := v.(*fsFile)
 		if file.file != nil {
-			file.file.Close()
+			err := file.file.Close()
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Error closing file: %v\n", err)
+				return false
+			}
 		}
 		return true
 	})

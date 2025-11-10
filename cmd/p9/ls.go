@@ -55,7 +55,12 @@ func (cmd *lsCmd) Run(options GlobalOptions, args []string) error {
 			if err != nil {
 				return util.Errorf("open %q: %w", arg, err)
 			}
-			defer d.Close()
+			defer func(d *p9.Remote) {
+				err := d.Close()
+				if err != nil {
+					_, _ = fmt.Fprintf(fset.Output(), "Error closing remote %q: %v\n", arg, err)
+				}
+			}(d)
 
 			fi, err := d.Stat("")
 			if err != nil {
@@ -96,7 +101,9 @@ func (cmd *lsCmd) printEntries(entries []p9.DirEntry) {
 		' ',
 		0,
 	)
-	defer w.Flush()
+	defer func() {
+		_ = w.Flush()
+	}()
 
 	for _, entry := range entries {
 		if cmd.showDetails {

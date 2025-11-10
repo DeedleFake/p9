@@ -3,7 +3,9 @@ package p9
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"io"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -313,7 +315,12 @@ func (file *Remote) Stat(p string) (DirEntry, error) {
 		if err != nil {
 			return DirEntry{}, err
 		}
-		defer file.Close()
+		defer func() {
+			err := file.Close()
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Error closing file %q: %v", p, err)
+			}
+		}()
 
 		return file.Stat("")
 	}

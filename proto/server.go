@@ -22,7 +22,12 @@ func Serve(lis net.Listener, p Proto, connHandler ConnHandler) (err error) {
 		}
 
 		go func() {
-			defer c.Close()
+			defer func(c net.Conn) {
+				err := c.Close()
+				if err != nil {
+					log.Printf("Error closing connection: %v", err)
+				}
+			}(c)
 
 			if h, ok := connHandler.(handleConn); ok {
 				h.HandleConn(c)
@@ -33,7 +38,12 @@ func Serve(lis net.Listener, p Proto, connHandler ConnHandler) (err error) {
 
 			mh := connHandler.MessageHandler()
 			if c, ok := mh.(io.Closer); ok {
-				defer c.Close()
+				defer func(c io.Closer) {
+					err := c.Close()
+					if err != nil {
+						log.Printf("Error closing connection: %v", err)
+					}
+				}(c)
 			}
 
 			handleMessages(c, p, mh)

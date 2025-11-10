@@ -54,7 +54,12 @@ func (cmd *exportCmd) Run(options GlobalOptions, args []string) error {
 	if err != nil {
 		return util.Errorf("listen: %w", err)
 	}
-	defer lis.Close()
+	defer func() {
+		err := lis.Close()
+		if err != nil {
+			_, _ = fmt.Fprintf(fset.Output(), "Error closing listener: %v", err)
+		}
+	}()
 
 	errC := make(chan error, 1)
 	go func() {
