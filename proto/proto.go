@@ -45,7 +45,7 @@ func NewProto(mapping map[uint8]reflect.Type) Proto {
 	rmap := make(map[uint8]reflect.Type, len(mapping))
 	smap := make(map[reflect.Type]uint8, len(mapping))
 	for id, t := range mapping {
-		if t.Kind() == reflect.Ptr {
+		if t.Kind() == reflect.Pointer {
 			t = t.Elem()
 		}
 
