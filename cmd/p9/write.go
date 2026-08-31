@@ -68,7 +68,12 @@ func (cmd *writeCmd) Run(options GlobalOptions, args []string) error {
 		if err != nil {
 			return util.Errorf("open %q: %v", args[0], err)
 		}
-		defer f.Close()
+		defer func() {
+			err := f.Close()
+			if err != nil {
+				_, _ = fmt.Fprintf(fset.Output(), "Error closing remote %q: %v\n", args[0], err)
+			}
+		}()
 
 		if *app {
 			_, err := f.Seek(0, io.SeekEnd)

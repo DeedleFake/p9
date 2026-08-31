@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -57,7 +58,12 @@ func AttachHandler(h http.Handler) http.Handler {
 			Error(rw, err, http.StatusBadRequest)
 			return
 		}
-		defer c.Close()
+		defer func() {
+			err := c.Close()
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Error closing connection: %v", err)
+			}
+		}()
 
 		_, err = c.Handshake(4096)
 		if err != nil {
@@ -70,7 +76,12 @@ func AttachHandler(h http.Handler) http.Handler {
 			Error(rw, err, http.StatusBadRequest)
 			return
 		}
-		defer a.Close()
+		defer func() {
+			err := a.Close()
+			if err != nil {
+				_, _ = fmt.Fprintf(os.Stderr, "Error closing remote: %v\n", err)
+			}
+		}()
 
 		ctx := req.Context()
 		ctx = context.WithValue(ctx, AddrKey, addr)
@@ -132,7 +143,12 @@ func handleLS(rw http.ResponseWriter, req *http.Request) {
 		Error(rw, err, http.StatusBadRequest)
 		return
 	}
-	defer f.Close()
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			log.Printf("Error closing remote: %v\n", err)
+		}
+	}()
 
 	entries, err := f.Readdir()
 	if err != nil {
@@ -158,7 +174,12 @@ func handleRead(rw http.ResponseWriter, req *http.Request) {
 		Error(rw, err, http.StatusBadRequest)
 		return
 	}
-	defer f.Close()
+	defer func() {
+		err := f.Close()
+		if err != nil {
+			log.Printf("Error closing remote: %v\n", err)
+		}
+	}()
 
 	_, err = io.Copy(rw, f)
 	if err != nil {

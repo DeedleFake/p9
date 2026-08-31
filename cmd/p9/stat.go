@@ -100,7 +100,9 @@ func (cmd *statCmd) printText(fi p9.DirEntry) {
 		' ',
 		0,
 	)
-	defer w.Flush()
+	defer func() {
+		_ = w.Flush()
+	}()
 
 	const timeFormat = "03:04 PM, January 2, 2006"
 

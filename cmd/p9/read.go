@@ -48,7 +48,12 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 	}
 
 	writeFile := func(arg string, f *p9.Remote) error {
-		defer f.Close()
+		defer func() {
+			err := f.Close()
+			if err != nil {
+				_, _ = fmt.Fprintf(fset.Output(), "Error closing remote: %v", err)
+			}
+		}()
 
 		_, err = io.Copy(os.Stdout, f)
 		if err != nil {
@@ -60,10 +65,20 @@ func (cmd *readCmd) Run(options GlobalOptions, args []string) error {
 
 	if cmd.tar {
 		out := tar.NewWriter(os.Stdout)
-		defer out.Close()
+		defer func() {
+			err := out.Close()
+			if err != nil {
+				_, _ = fmt.Fprintf(fset.Output(), "Error closing tar writer: %v", err)
+			}
+		}()
 
 		writeFile = func(arg string, f *p9.Remote) error {
-			defer f.Close()
+			defer func() {
+				err := f.Close()
+				if err != nil {
+					_, _ = fmt.Fprintf(fset.Output(), "Error closing remote: %v", err)
+				}
+			}()
 
 			fi, err := f.Stat("")
 			if err != nil {

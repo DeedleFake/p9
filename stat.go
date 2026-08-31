@@ -318,7 +318,7 @@ type StatChanges struct {
 }
 
 func (c StatChanges) Mode() (FileMode, bool) {
-	return c.DirEntry.FileMode, c.DirEntry.FileMode != 0xFFFFFFFF
+	return c.FileMode, c.FileMode != 0xFFFFFFFF
 }
 
 func (c StatChanges) ATime() (time.Time, bool) {
@@ -334,7 +334,7 @@ func (c StatChanges) Length() (uint64, bool) {
 }
 
 func (c StatChanges) Name() (string, bool) {
-	return c.DirEntry.EntryName, c.DirEntry.EntryName != ""
+	return c.EntryName, c.EntryName != ""
 }
 
 func (c StatChanges) UID() (string, bool) {
